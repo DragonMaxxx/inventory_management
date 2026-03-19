@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Trisecmed.API/Trisecmed.API.csproj" />
+    <Project Path="src/Trisecmed.Application/Trisecmed.Application.csproj" />
+    <Project Path="src/Trisecmed.Domain/Trisecmed.Domain.csproj" />
+    <Project Path="src/Trisecmed.Infrastructure/Trisecmed.Infrastructure.csproj" />
+  </Folder>
+</Solution>
