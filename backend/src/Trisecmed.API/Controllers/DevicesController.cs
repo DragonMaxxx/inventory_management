@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Trisecmed.Infrastructure.Data;
 using Trisecmed.Domain.Entities;
 
+
 namespace Trisecmed.API.Controllers;
 
 [ApiController]

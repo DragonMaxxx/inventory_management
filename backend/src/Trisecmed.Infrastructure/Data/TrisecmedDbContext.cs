@@ -1,12 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using Trisecmed.Domain.Entities;
 
-namespace Trisecmed.Infrastructure.Data;
-
-public class TrisecmedDbContext : DbContext
+namespace Trisecmed.Infrastructure.Data
 {
-    public TrisecmedDbContext(DbContextOptions<TrisecmedDbContext> options)
-        : base(options) { }
+    public class AppDbContext : DbContext
+    {
+        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
+        {
+        }
 
-    public DbSet<MedicalDevice> MedicalDevices => Set<MedicalDevice>();
+        public DbSet<MedicalDevice> MedicalDevices { get; set; }
+    }
 }
