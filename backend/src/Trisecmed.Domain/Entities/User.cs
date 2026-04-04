@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 using Trisecmed.Domain.Enums;
 
 namespace Trisecmed.Domain.Entities;
@@ -19,3 +20,14 @@ public class User : BaseEntity
     public string? RefreshToken { get; set; }
     public DateTime? RefreshTokenExpiresAt { get; set; }
 }
+=======
+namespace Trisecmed.Domain.Entities;
+
+public class User
+{
+    public int Id { get; set; }
+    public string Username { get; set; } = null!;
+    public string PasswordHash { get; set; } = null!;
+    public string Role { get; set; } = "Staff"; // Staff/Admin
+}
+>>>>>>> 8fa7545c91d5a89ff4740c63ab57a6902f000936

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Trisecmed.Application.Equipment.Commands;
 using Trisecmed.Application.Equipment.Queries;
 
+
 namespace Trisecmed.API.Controllers;
 
 [ApiController]

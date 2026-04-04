@@ -2,13 +2,15 @@ using Microsoft.EntityFrameworkCore;
 using Trisecmed.Domain.Entities;
 using Trisecmed.Domain.Enums;
 
-namespace Trisecmed.Infrastructure.Data;
-
-public class TrisecmedDbContext : DbContext
+namespace Trisecmed.Infrastructure.Data
 {
-    public TrisecmedDbContext(DbContextOptions<TrisecmedDbContext> options)
-        : base(options) { }
+    public class AppDbContext : DbContext
+    {
+        public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
+        {
+        }
 
+<<<<<<< HEAD
     public DbSet<Device> Devices => Set<Device>();
     public DbSet<Department> Departments => Set<Department>();
     public DbSet<Category> Categories => Set<Category>();
@@ -167,3 +169,8 @@ public class TrisecmedDbContext : DbContext
         return base.SaveChangesAsync(cancellationToken);
     }
 }
+=======
+        public DbSet<MedicalDevice> MedicalDevices { get; set; }
+    }
+}
+>>>>>>> 8fa7545c91d5a89ff4740c63ab57a6902f000936

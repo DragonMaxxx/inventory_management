@@ -1,12 +1,20 @@
+<<<<<<< HEAD
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+=======
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+>>>>>>> 8fa7545c91d5a89ff4740c63ab57a6902f000936
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
+<<<<<<< HEAD
     <ProjectReference Include="..\Trisecmed.Application\Trisecmed.Application.csproj" />
     <ProjectReference Include="..\Trisecmed.Domain\Trisecmed.Domain.csproj" />
   </ItemGroup>
@@ -35,3 +43,14 @@
   </ItemGroup>
 
 </Project>
+=======
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.8" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Trisecmed.Domain\Trisecmed.Domain.csproj" />
+  </ItemGroup>
+
+</Project>
+>>>>>>> 8fa7545c91d5a89ff4740c63ab57a6902f000936
