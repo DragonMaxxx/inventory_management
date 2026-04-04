@@ -1,34 +1,43 @@
+using FluentValidation;
+using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Trisecmed.Infrastructure.Data;
-using Trisecmed.Domain.Entities;
+using Trisecmed.Application.Equipment.Commands;
+using Trisecmed.Application.Equipment.Queries;
 
 namespace Trisecmed.API.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/v1/[controller]")]
 public class DevicesController : ControllerBase
 {
-    private readonly TrisecmedDbContext _db;
+    private readonly IMediator _mediator;
 
-    public DevicesController(TrisecmedDbContext db)
+    public DevicesController(IMediator mediator)
     {
-        _db = db;
+        _mediator = mediator;
     }
 
     [HttpGet]
-    public async Task<IActionResult> Get()
+    public async Task<IActionResult> GetAll()
     {
-        var devices = await _db.MedicalDevices.ToListAsync();
+        var devices = await _mediator.Send(new GetDevicesQuery());
         return Ok(devices);
     }
 
     [HttpPost]
-    public async Task<IActionResult> Create(MedicalDevice device)
+    public async Task<IActionResult> Create(
+        [FromBody] CreateDeviceCommand command,
+        [FromServices] IValidator<CreateDeviceCommand> validator)
     {
-        device.Id = Guid.NewGuid();
-        _db.MedicalDevices.Add(device);
-        await _db.SaveChangesAsync();
-        return Ok(device);
+        var validation = await validator.ValidateAsync(command);
+        if (!validation.IsValid)
+            return BadRequest(validation.Errors.Select(e => new { e.PropertyName, e.ErrorMessage }));
+
+        var result = await _mediator.Send(command);
+
+        if (result.IsFailure)
+            return Conflict(new { error = result.Error });
+
+        return CreatedAtAction(nameof(GetAll), new { id = result.Value }, new { id = result.Value });
     }
 }

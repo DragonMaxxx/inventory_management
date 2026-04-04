@@ -3,6 +3,8 @@ bin/
 obj/
 *.user
 *.suo
+*.DotSettings.user
+out/
 
 # Node
 node_modules/
@@ -14,6 +16,7 @@ dist/
 
 # Logs
 *.log
+logs/
 
 # Docker
 postgres_data/
@@ -21,3 +24,9 @@ postgres_data/
 # OS
 .DS_Store
 Thumbs.db
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.swp

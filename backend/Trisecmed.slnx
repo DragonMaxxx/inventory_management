@@ -5,4 +5,8 @@
     <Project Path="src/Trisecmed.Domain/Trisecmed.Domain.csproj" />
     <Project Path="src/Trisecmed.Infrastructure/Trisecmed.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Trisecmed.Unit.Tests/Trisecmed.Unit.Tests.csproj" />
+    <Project Path="tests/Trisecmed.Integration.Tests/Trisecmed.Integration.Tests.csproj" />
+  </Folder>
 </Solution>
