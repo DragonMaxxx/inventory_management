@@ -5,7 +5,9 @@ using Trisecmed.Application.Identity.Interfaces;
 using Trisecmed.Domain.Interfaces;
 using Trisecmed.Infrastructure.Auth;
 using Trisecmed.Infrastructure.Data;
+using Trisecmed.Application.Equipment.Commands;
 using Trisecmed.Infrastructure.Repositories;
+using Trisecmed.Infrastructure.Services;
 
 namespace Trisecmed.Infrastructure;
 
@@ -31,6 +33,9 @@ public static class DependencyInjection
         services.AddScoped<IJwtService, JwtService>();
         services.AddScoped<IPasswordHasher, BcryptPasswordHasher>();
         services.AddScoped<AuditInterceptor>();
+
+        // Services
+        services.AddScoped<IExcelReader, ClosedXmlExcelReader>();
 
         return services;
     }

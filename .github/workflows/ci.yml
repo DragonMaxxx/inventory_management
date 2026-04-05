@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: trisecmed_test
+          POSTGRES_USER: trisecmed_user
+          POSTGRES_PASSWORD: test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+        working-directory: backend
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+        working-directory: backend
+
+      - name: Run unit tests
+        run: dotnet test tests/Trisecmed.Unit.Tests --configuration Release --no-build --verbosity normal
+        working-directory: backend
+
+      - name: Run integration tests
+        run: dotnet test tests/Trisecmed.Integration.Tests --configuration Release --no-build --verbosity normal
+        working-directory: backend
+        env:
+          ConnectionStrings__Default: "Host=localhost;Port=5432;Database=trisecmed_test;Username=trisecmed_user;Password=test_password"
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t trisecmed-api ./backend

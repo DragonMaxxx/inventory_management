@@ -4,17 +4,16 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 using Serilog;
+using Trisecmed.API.Middleware;
 using Trisecmed.API.Services;
 using Trisecmed.Application;
 using Trisecmed.Infrastructure;
 using Trisecmed.Infrastructure.Data;
-using Microsoft.OpenApi.Models;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
     .CreateBootstrapLogger();
 
-<<<<<<< HEAD
 try
 {
     var builder = WebApplication.CreateBuilder(args);
@@ -24,19 +23,6 @@ try
         .ReadFrom.Configuration(context.Configuration)
         .WriteTo.Console()
         .WriteTo.File("logs/trisecmed-.log", rollingInterval: RollingInterval.Day));
-=======
-// Dodaj DbContext
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
-
-// Serwisy
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "Trisecmed API", Version = "v1" });
-});
->>>>>>> 8fa7545c91d5a89ff4740c63ab57a6902f000936
 
     // Clean Architecture DI
     builder.Services.AddHttpContextAccessor();
@@ -44,7 +30,6 @@ builder.Services.AddSwaggerGen(c =>
     builder.Services.AddApplication();
     builder.Services.AddInfrastructure(builder.Configuration);
 
-<<<<<<< HEAD
     // JWT Authentication
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         .AddJwtBearer(options =>
@@ -71,18 +56,6 @@ builder.Services.AddSwaggerGen(c =>
             o.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
         });
     builder.Services.AddOpenApi();
-=======
-// Middleware Swagger
-app.UseSwagger();
-app.UseSwaggerUI(c =>
-{
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Trisecmed API v1");
-});
-
-app.UseHttpsRedirection();
-app.UseAuthorization();
-app.MapControllers();
->>>>>>> 8fa7545c91d5a89ff4740c63ab57a6902f000936
 
     // Health checks
     builder.Services.AddHealthChecks()
@@ -96,6 +69,9 @@ app.MapControllers();
     });
 
     var app = builder.Build();
+
+    // Global exception handler — first in pipeline
+    app.UseMiddleware<GlobalExceptionMiddleware>();
 
     // Auto-migrate in Development
     if (app.Environment.IsDevelopment())
