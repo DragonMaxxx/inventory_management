@@ -68,7 +68,7 @@ Najpierw zaloguj się i zapisz token:
 TOKEN=$(curl -s -X POST http://localhost:5000/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"worker@trisecmed.local","password":"Worker123"}' \
-  | python -c "import sys,json; print(json.load(sys.stdin)['accessToken'])")
+  | python -c "import sys,json; print(json.load(sys.stdin)['accessToken'])
 ```
 
 Teraz użyj tokenu:

@@ -1,4 +1,6 @@
 using System.Text;
+using Hangfire;
+using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -9,6 +11,7 @@ using Trisecmed.API.Services;
 using Trisecmed.Application;
 using Trisecmed.Infrastructure;
 using Trisecmed.Infrastructure.Data;
+using Trisecmed.Infrastructure.Jobs;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -61,6 +64,15 @@ try
     builder.Services.AddHealthChecks()
         .AddNpgSql(builder.Configuration.GetConnectionString("Default")!, name: "postgresql");
 
+    // Hangfire
+    builder.Services.AddHangfire(config => config
+        .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+        .UseSimpleAssemblyNameTypeSerializer()
+        .UseRecommendedSerializerSettings()
+        .UsePostgreSqlStorage(options =>
+            options.UseNpgsqlConnection(builder.Configuration.GetConnectionString("Default")!)));
+    builder.Services.AddHangfireServer();
+
     // CORS for dev
     builder.Services.AddCors(options =>
     {
@@ -90,6 +102,23 @@ try
     // OpenAPI doc at /openapi/v1.json + Scalar UI at /scalar/v1
     app.MapOpenApi();
     app.MapScalarApiReference();
+
+    // Hangfire dashboard (admin only in production)
+    app.UseHangfireDashboard("/hangfire", new DashboardOptions
+    {
+        Authorization = [new HangfireAuthorizationFilter()],
+    });
+
+    // Recurring Hangfire jobs
+    RecurringJob.AddOrUpdate<InspectionDueNotificationJob>(
+        "inspection-due-notification",
+        job => job.ExecuteAsync(),
+        "0 7 * * *"); // codziennie o 7:00
+
+    RecurringJob.AddOrUpdate<WarrantyExpirationJob>(
+        "warranty-expiration",
+        job => job.ExecuteAsync(),
+        "0 8 * * *"); // codziennie o 8:00
 
     app.MapHealthChecks("/health");
     app.MapControllers();
