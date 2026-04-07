@@ -1,6 +1,7 @@
 @page "/reports"
-@attribute [Authorize(Roles = "EquipmentWorker,EquipmentManager")]
+@attribute [Authorize(Roles = "EquipmentWorker,EquipmentManager,Administrator")]
 @inject ApiClient Api
+@inject AuthService Auth
 @inject ISnackbar Snackbar
 @inject IJSRuntime JS
 
@@ -62,10 +63,42 @@
     </MudItem>
 </MudGrid>
 
+@if (_role is "Administrator")
+{
+    <MudText Typo="Typo.h5" Class="mt-6 mb-4">Eksport GDPR</MudText>
+    <MudPaper Elevation="2" Class="pa-4" MaxWidth="400px">
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">Eksport danych osobowych użytkownika (zgodnie z RODO).</MudText>
+        <MudSelect T="Guid?" @bind-Value="_gdprUserId" Label="Użytkownik" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3">
+            @foreach (var u in _users)
+            {
+                <MudSelectItem T="Guid?" Value="u.Id">@u.FirstName @u.LastName (@u.Email)</MudSelectItem>
+            }
+        </MudSelect>
+        <MudButton Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.Download"
+                   OnClick="DownloadGdpr" Disabled="_gdprLoading || !_gdprUserId.HasValue" FullWidth="true">
+            @if (_gdprLoading) { <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" /> }
+            Eksportuj dane
+        </MudButton>
+    </MudPaper>
+}
+
 @code {
     private string _eqFormat = "pdf", _failFormat = "pdf", _inspFormat = "pdf";
     private DateTime? _failFrom, _failTo, _inspFrom, _inspTo;
     private bool _eqLoading, _failLoading, _inspLoading;
+    private string? _role;
+    private List<UserDto> _users = [];
+    private Guid? _gdprUserId;
+    private bool _gdprLoading;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _role = await Auth.GetUserRoleAsync();
+        if (_role is "Administrator")
+        {
+            try { _users = await Api.GetUsersAsync(); } catch { }
+        }
+    }
 
     private async Task DownloadEquipment()
     {
@@ -119,6 +152,19 @@
         }
         catch (Exception ex) { Snackbar.Add($"Błąd: {ex.Message}", Severity.Error); }
         _inspLoading = false;
+    }
+
+    private async Task DownloadGdpr()
+    {
+        if (!_gdprUserId.HasValue) return;
+        _gdprLoading = true;
+        try
+        {
+            var data = await Api.DownloadGdprExportAsync(_gdprUserId.Value);
+            await SaveFile(data, "gdpr_export.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        }
+        catch (Exception ex) { Snackbar.Add($"Błąd: {ex.Message}", Severity.Error); }
+        _gdprLoading = false;
     }
 
     private async Task SaveFile(byte[] data, string fileName, string mimeType)

@@ -5,6 +5,7 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject IJSRuntime JS
+@inject NavigationManager Nav
 
 <PageTitle>Urządzenia — Trisecmed</PageTitle>
 
@@ -32,6 +33,17 @@
                 <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.Add"
                            OnClick="OpenCreateDialog">Dodaj</MudButton>
             }
+            @if (CanImport)
+            {
+                <MudFileUpload T="IBrowserFile" Accept=".xlsx" FilesChanged="ImportExcel" MaximumFileCount="1">
+                    <ActivatorContent>
+                        <MudButton Variant="Variant.Filled" Color="Color.Info" StartIcon="@Icons.Material.Filled.Upload" Disabled="_importing">
+                            @if (_importing) { <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" /> }
+                            Import
+                        </MudButton>
+                    </ActivatorContent>
+                </MudFileUpload>
+            }
         </MudItem>
     </MudGrid>
 
@@ -50,7 +62,7 @@
             }
         </HeaderContent>
         <RowTemplate>
-            <MudTd>@context.Name</MudTd>
+            <MudTd><MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" OnClick="@(() => Nav.NavigateTo($"/devices/{context.Id}"))">@context.Name</MudButton></MudTd>
             <MudTd><code>@context.InventoryNumber</code></MudTd>
             <MudTd>@context.Manufacturer @context.Model</MudTd>
             <MudTd>@context.DepartmentName</MudTd>
@@ -88,6 +100,8 @@
 
     private bool CanCreate => _role is "EquipmentWorker" or "EquipmentManager";
     private bool CanDelete => _role is "EquipmentManager";
+    private bool CanImport => _role is "Administrator";
+    private bool _importing;
 
     protected override async Task OnInitializedAsync()
     {
@@ -172,6 +186,33 @@
             else
                 Snackbar.Add("Błąd archiwizacji", Severity.Error);
         }
+    }
+
+    private async Task ImportExcel(IBrowserFile file)
+    {
+        _importing = true;
+        try
+        {
+            using var content = new MultipartFormDataContent();
+            using var stream = file.OpenReadStream(10 * 1024 * 1024);
+            var streamContent = new StreamContent(stream);
+            content.Add(streamContent, "file", file.Name);
+            var res = await Api.ImportDevicesAsync(content);
+            if (res.IsSuccessStatusCode)
+            {
+                var result = await res.Content.ReadAsStringAsync();
+                Snackbar.Add($"Import zakończony: {result}", Severity.Success);
+                await LoadData();
+            }
+            else
+            {
+                var error = await res.Content.ReadAsStringAsync();
+                Snackbar.Add($"Błąd importu: {error}", Severity.Error);
+            }
+        }
+        catch (Exception ex) { Snackbar.Add($"Błąd: {ex.Message}", Severity.Error); }
+        _importing = false;
+        StateHasChanged();
     }
 
     private static Color StatusColor(string status) => status switch

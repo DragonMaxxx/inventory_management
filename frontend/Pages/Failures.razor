@@ -3,6 +3,7 @@
 @inject ApiClient Api
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject NavigationManager Nav
 
 <PageTitle>Awarie — Trisecmed</PageTitle>
 
@@ -49,7 +50,7 @@
             <MudTh>Koszt</MudTh>
         </HeaderContent>
         <RowTemplate>
-            <MudTd>@context.DeviceName</MudTd>
+            <MudTd><MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" OnClick="@(() => Nav.NavigateTo($"/failures/{context.Id}"))">@context.DeviceName</MudButton></MudTd>
             <MudTd><code>@context.DeviceInventoryNumber</code></MudTd>
             <MudTd><MudChip T="string" Size="Size.Small" Color="PriorityColor(context.Priority)">@PriorityLabel(context.Priority)</MudChip></MudTd>
             <MudTd><MudChip T="string" Size="Size.Small" Color="StatusColor(context.Status)">@StatusLabel(context.Status)</MudChip></MudTd>

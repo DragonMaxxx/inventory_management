@@ -52,7 +52,7 @@
                         </MudNavLink>
                     }
 
-                    @if (IsInRole(context, "EquipmentWorker", "EquipmentManager"))
+                    @if (IsInRole(context, "EquipmentWorker", "EquipmentManager", "Administrator"))
                     {
                         <MudText Typo="Typo.overline" Class="px-4 mt-3 mb-1" Color="Color.Secondary">Raporty</MudText>
                         <MudNavLink Href="/reports" Icon="@Icons.Material.Filled.Assessment">
