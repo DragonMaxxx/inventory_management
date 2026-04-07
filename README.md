@@ -60,7 +60,7 @@ Przy pierwszym uruchomieniu system tworzy trzy konta z różnymi rolami. **Każd
 |-------|-------|------|----------------|
 | `admin@trisecmed.local` | `Admin123` | Administrator | Zarządzanie użytkownikami, import Excel, GDPR, słowniki |
 | `worker@trisecmed.local` | `Worker123` | EquipmentWorker | Dodawanie urządzeń, przeglądy, obsługa awarii, raporty |
-| `manager@trisecmed.local` | `Manager123` | EquipmentManager | Wszystko co worker + kasacja urządzeń, zmiana statusów |
+| `manager@trisecmed.local` | `Manager123` | EquipmentManager | Wszystko co worker + usuwanie urządzeń, zmiana statusów |
 
 **Aby przetestować dodawanie urządzeń i awarii** — zaloguj się jako `worker` lub `manager`. Admin nie ma do tego uprawnień (celowo — admin zarządza systemem, nie operuje na sprzęcie).
 
