@@ -1,98 +1,164 @@
 # Trisecmed
 
-System do ewidencji i zarządzania aparaturą medyczną w szpitalu. Powstał jako projekt inżynierski — docelowo ma obsługiwać cały cykl życia urządzenia medycznego: od przyjęcia na stan, przez przeglądy techniczne i awarie, aż po kasację.
+System do ewidencji i zarządzania aparaturą medyczną w szpitalu. Obsługuje cały cykl życia urządzenia medycznego: od przyjęcia na stan, przez przeglądy techniczne i awarie, aż po kasację.
 
-Na ten moment zaimplementowany jest backend (REST API). Frontend będzie dodany po ukończeniu backendu.
+Składa się z **backendu** (REST API w .NET 10) i **frontendu** (Blazor WebAssembly z MudBlazor).
 
-## O co chodzi w tym projekcie
+## Szybki start
 
-W szpitalach jest mnóstwo sprzętu medycznego — aparaty RTG, respiratory, pompy infuzyjne, defibrylatory. Każde urządzenie musi mieć aktualny przegląd techniczny, ktoś musi pilnować gwarancji, a jak się zepsuje — trzeba to zgłosić, przypisać serwisanta i śledzić naprawę. Do tego dochodzi rozliczanie kosztów, raporty dla kierownictwa i wymagania prawne (RODO, audyt).
+### Wymagania
 
-Trisecmed to system, który zbiera to wszystko w jedno miejsce. Zamiast Exceli, papierowych kart i telefonów — jedno API, do którego można podpiąć dowolny frontend.
+- **Docker Desktop** (uruchomiony)
+- **.NET 10 SDK** (do frontendu i developmentu)
+- **Git**
+
+### Uruchomienie całego systemu
+
+```bash
+# 1. Sklonuj repozytorium i wejdź do katalogu
+cd inventory_management
+
+# 2. Uruchom backend + bazę danych na Dockerze
+docker compose up --build -d
+
+# 3. Sprawdź czy backend działa
+curl http://localhost:5000/health
+# Powinno zwrócić: Healthy
+
+# 4. Uruchom frontend (w osobnym terminalu)
+cd frontend
+dotnet run --urls "http://localhost:5002"
+```
+
+Po uruchomieniu:
+
+| Usługa | Adres |
+|--------|-------|
+| **Frontend (Blazor)** | http://localhost:5002 |
+| **Backend API** | http://localhost:5000 |
+| **Dokumentacja API (Scalar)** | http://localhost:5000/scalar/v1 |
+| **Panel Hangfire (joby)** | http://localhost:5000/hangfire |
+| **PostgreSQL** | localhost:5432 |
+
+### Zatrzymanie
+
+```bash
+# Zatrzymaj backend + bazę
+docker compose down
+
+# Zatrzymaj i wyczyść bazę (pełny reset)
+docker compose down -v
+
+# Frontend — Ctrl+C w terminalu gdzie uruchomiłeś dotnet run
+```
+
+## Konta testowe
+
+Przy pierwszym uruchomieniu system tworzy trzy konta z różnymi rolami. **Każda rola widzi inne elementy interfejsu** — przyciski i strony są ukrywane zgodnie z uprawnieniami.
+
+| Email | Hasło | Rola | Do czego służy |
+|-------|-------|------|----------------|
+| `admin@trisecmed.local` | `Admin123` | Administrator | Zarządzanie użytkownikami, import Excel, GDPR, słowniki |
+| `worker@trisecmed.local` | `Worker123` | EquipmentWorker | Dodawanie urządzeń, przeglądy, obsługa awarii, raporty |
+| `manager@trisecmed.local` | `Manager123` | EquipmentManager | Wszystko co worker + kasacja urządzeń, zmiana statusów |
+
+**Aby przetestować dodawanie urządzeń i awarii** — zaloguj się jako `worker` lub `manager`. Admin nie ma do tego uprawnień (celowo — admin zarządza systemem, nie operuje na sprzęcie).
+
+## Co robi system
+
+### Moduły backendu
+
+| Moduł | Opis |
+|-------|------|
+| **Tożsamość** | Logowanie JWT, odświeżanie tokenów, tworzenie kont, aktywacja, role RBAC, audit log |
+| **Aparatura** | CRUD urządzeń, przeglądy techniczne, historia awarii, import z Excela |
+| **Awarie** | Zgłaszanie awarii, zmiana statusów, przypisanie serwisanta, rozwiązanie z kosztem naprawy, historia zmian |
+| **Powiadomienia** | Automatyczne emaile: zbliżający się przegląd (30 dni), wygasająca gwarancja (14 dni), nowa awaria |
+| **Raporty** | Generowanie PDF i Excel (urządzenia, awarie, przeglądy), eksport danych GDPR |
+| **Słowniki** | Kategorie urządzeń, oddziały, firmy serwisowe |
+
+### Strony frontendu
+
+| Strona | URL | Kto widzi | Co można robić |
+|--------|-----|-----------|---------------|
+| Dashboard | `/` | Wszyscy | Statystyki: urządzenia, otwarte awarie, kategorie, oddziały |
+| Urządzenia | `/devices` | Wszyscy | Lista, filtrowanie, szukanie. Worker/Manager: dodaj, edytuj. Manager: archiwizuj. Admin: import Excel |
+| Szczegóły urządzenia | `/devices/{id}` | Wszyscy | Dane urządzenia, przeglądy (lista + dodawanie), zmiana statusu (Manager) |
+| Awarie | `/failures` | Wszyscy | Lista, filtrowanie. Nurse/Worker/Manager: zgłoś awarię |
+| Szczegóły awarii | `/failures/{id}` | Wszyscy | Szczegóły, zmiana statusu, przypisanie serwisanta, rozwiązanie, historia zmian |
+| Kategorie | `/categories` | Wszyscy | Lista. Manager/Admin: dodaj, edytuj. Admin: usuń |
+| Oddziały | `/departments` | Wszyscy | Lista. Manager/Admin: dodaj, edytuj. Admin: usuń |
+| Serwisanci | `/service-providers` | Worker+ | Lista. Manager/Admin: dodaj, edytuj. Admin: usuń |
+| Raporty | `/reports` | Worker+ | Pobieranie raportów PDF/Excel. Admin: eksport GDPR |
+| Powiadomienia | `/notifications` | Worker+ | Lista wysłanych powiadomień email |
+| Użytkownicy | `/users` | Admin | Lista użytkowników, tworzenie nowych kont |
+
+## Role i uprawnienia
+
+| Akcja | Nurse | Worker | Manager | Admin |
+|-------|:-----:|:------:|:-------:|:-----:|
+| Przeglądanie urządzeń | + | + | + | + |
+| Dodawanie/edycja urządzeń | - | + | + | - |
+| Zmiana statusu urządzenia | - | - | + | - |
+| Archiwizacja urządzenia | - | - | + | - |
+| Dodawanie przeglądów | - | + | + | - |
+| Zgłaszanie awarii | + | + | + | - |
+| Obsługa awarii (status/serwisant/rozwiązanie) | - | + | + | - |
+| Tworzenie/edycja kategorii i oddziałów | - | - | + | + |
+| Usuwanie kategorii i oddziałów | - | - | - | + |
+| Tworzenie/edycja serwisantów | - | - | + | + |
+| Pobieranie raportów (PDF/Excel) | - | + | + | - |
+| Eksport GDPR | - | - | - | + |
+| Import urządzeń z Excela | - | - | - | + |
+| Zarządzanie użytkownikami | - | - | - | + |
 
 ## Stos technologiczny
 
-- **C# / .NET 10 / ASP.NET Core** — główny framework
-- **Entity Framework Core** — ORM, migracje bazy danych
+### Backend
+- **C# / .NET 10 / ASP.NET Core** — framework
+- **Entity Framework Core** — ORM, migracje
 - **PostgreSQL 16** — baza danych
-- **MediatR** — wzorzec CQRS (oddzielenie komend od zapytań)
-- **FluentValidation** — walidacja danych wejściowych
-- **JWT (JSON Web Tokens)** — uwierzytelnianie
+- **MediatR** — wzorzec CQRS
+- **FluentValidation** — walidacja
+- **JWT** — uwierzytelnianie
 - **BCrypt** — hashowanie haseł
+- **Hangfire** — kolejka zadań (cron joby)
+- **MailKit** — wysyłanie emaili SMTP
+- **QuestPDF** — generowanie raportów PDF
+- **ClosedXML** — generowanie/import plików Excel
 - **Serilog** — logowanie
-- **Docker + Nginx** — konteneryzacja i reverse proxy
-- **xUnit + FluentAssertions** — testy
-- **ClosedXML** — import z Excela
-- **Hangfire** — kolejka zadań (przyszłościowo: powiadomienia, backupy)
+- **Docker + Nginx** — konteneryzacja
 
-## Jak to uruchomić
+### Frontend
+- **Blazor WebAssembly** — SPA w C#
+- **MudBlazor 9.2** — biblioteka komponentów Material Design
+- **JS Interop** — localStorage dla tokenów JWT
 
-Potrzebujesz Docker Desktop (uruchomiony) i Git.
+## Architektura
 
-```bash
-cd inventory_management
-
-# Skopiuj plik konfiguracyjny
-cp .env.example .env
-
-# Uruchom
-docker compose up --build -d
+```
+inventory_management/
+├── backend/
+│   ├── src/
+│   │   ├── Trisecmed.Domain/           # Encje, enumy, interfejsy — zero zależności
+│   │   ├── Trisecmed.Application/      # Logika biznesowa — komendy, zapytania, walidacja
+│   │   ├── Trisecmed.Infrastructure/   # EF Core, repozytoria, JWT, email, raporty, joby
+│   │   └── Trisecmed.API/              # Kontrolery REST, middleware, konfiguracja
+│   ├── tests/
+│   │   ├── Trisecmed.Unit.Tests/       # Testy jednostkowe
+│   │   └── Trisecmed.Integration.Tests/ # Testy integracyjne
+│   └── Dockerfile
+├── frontend/
+│   ├── Pages/                           # Strony Blazor (.razor)
+│   ├── Services/                        # AuthService, ApiClient
+│   ├── Models/                          # DTO i modele formularzy
+│   ├── Layout/                          # MainLayout z nawigacją
+│   └── wwwroot/                         # index.html, appsettings.json
+├── docker-compose.yml
+└── README.md
 ```
 
-Po chwili API jest dostępne na `http://localhost:5000`. Żeby sprawdzić czy działa:
-
-```bash
-curl http://localhost:5000/health
-```
-
-Powinno zwrócić `Healthy`. Dokumentacja API (interaktywna) jest pod `http://localhost:5000/scalar/v1`.
-
-Żeby zatrzymać:
-
-```bash
-docker compose down        # zatrzymaj
-docker compose down -v     # zatrzymaj i wyczyść bazę (reset)
-```
-
-## Konta w trybie dev
-
-Przy pierwszym uruchomieniu system tworzy trzy konta z różnymi rolami:
-
-| Email | Hasło | Rola |
-|-------|-------|------|
-| admin@trisecmed.local | Admin123 | Administrator |
-| worker@trisecmed.local | Worker123 | EquipmentWorker |
-| manager@trisecmed.local | Manager123 | EquipmentManager |
-
-Każda rola ma inne uprawnienia — szczegóły w sekcji "Role i uprawnienia".
-
-## Jak działa uwierzytelnianie
-
-System używa tokenów JWT. Żeby cokolwiek zrobić (poza health checkiem), trzeba się najpierw zalogować:
-
-1. Wysyłasz email + hasło na `/api/v1/auth/login`
-2. Dostajesz `accessToken` (ważny 15 minut) i `refreshToken` (ważny 7 dni)
-3. Przy każdym kolejnym zapytaniu dołączasz `accessToken` w nagłówku `Authorization: Bearer <token>`
-4. Jak access token wygaśnie — odświeżasz go przez `/api/v1/auth/refresh`
-
-## Co aktualnie działa
-
-### Moduł Tożsamość (Identity)
-
-Logowanie, wylogowanie, odświeżanie tokenów, tworzenie kont przez admina, aktywacja konta tokenem. Każda operacja modyfikacji danych jest automatycznie zapisywana w audit logu (kto, co, kiedy zmienił).
-
-### Moduł Aparatura (Equipment)
-
-To główny moduł systemu. Obsługuje:
-
-- **Lista urządzeń** z filtrowaniem (po statusie, oddziale, kategorii), wyszukiwaniem tekstowym, sortowaniem i paginacją
-- **Szczegóły urządzenia** — wszystkie dane łącznie z nazwą oddziału i kategorii
-- **Dodawanie i edycja** urządzeń z walidacją (np. unikalny numer inwentarzowy, wymagane pola)
-- **Zmiana statusu** (Active, InRepair, Archived, Disposed) — tylko kierownik DAM
-- **Kasacja** (soft-delete — urządzenie dostaje status Archived, nie jest usuwane z bazy)
-- **Przeglądy techniczne** — dodawanie wpisów o przeglądach, historia przeglądów urządzenia, automatyczna aktualizacja daty następnego przeglądu
-- **Historia awarii** — podgląd awarii przypisanych do urządzenia
-- **Import z Excela** — wgrywanie urządzeń z pliku .xlsx (mapowanie kolumn po nazwie, raport błędów i duplikatów)
+Backend zbudowany w **Clean Architecture** — zależności płyną do wewnątrz (Domain ← Application ← Infrastructure ← API).
 
 ## Endpointy API
 
@@ -100,99 +166,81 @@ To główny moduł systemu. Obsługuje:
 
 | Metoda | Endpoint | Opis |
 |--------|----------|------|
-| POST | /auth/login | Logowanie |
-| POST | /auth/refresh | Odświeżenie tokenu |
-| POST | /auth/logout | Wylogowanie |
-| POST | /auth/activate | Aktywacja konta |
+| POST | /login | Logowanie (zwraca accessToken + refreshToken) |
+| POST | /refresh | Odświeżenie tokenu |
+| POST | /logout | Wylogowanie |
+| POST | /activate | Aktywacja konta tokenem |
 
-### Użytkownicy — `/api/v1/users` (tylko admin)
+### Użytkownicy — `/api/v1/users` (admin)
 
 | Metoda | Endpoint | Opis |
 |--------|----------|------|
-| GET | /users | Lista użytkowników |
-| POST | /users | Utworzenie konta |
+| GET | / | Lista użytkowników |
+| POST | / | Utworzenie konta |
 
 ### Urządzenia — `/api/v1/devices`
 
 | Metoda | Endpoint | Kto może | Opis |
 |--------|----------|----------|------|
-| GET | /devices | worker, manager, admin | Lista (filtrowanie, sortowanie, paginacja) |
-| GET | /devices/{id} | wszyscy zalogowani | Szczegóły urządzenia |
-| GET | /devices/department/{deptId} | wszyscy zalogowani | Urządzenia z danego oddziału |
-| POST | /devices | worker, manager | Dodanie urządzenia |
-| PUT | /devices/{id} | worker, manager | Edycja urządzenia |
-| PATCH | /devices/{id}/status | manager | Zmiana statusu |
-| DELETE | /devices/{id} | manager | Kasacja (soft-delete) |
-| GET | /devices/{id}/inspections | worker, manager | Historia przeglądów |
-| POST | /devices/{id}/inspections | worker, manager | Nowy wpis przeglądu |
-| GET | /devices/{id}/failures | worker, manager | Historia awarii |
-| POST | /devices/import | admin | Import z pliku Excel |
+| GET | / | worker, manager, admin | Lista z filtrowaniem, sortowaniem, paginacją |
+| GET | /{id} | wszyscy zalogowani | Szczegóły urządzenia |
+| GET | /department/{deptId} | wszyscy zalogowani | Urządzenia z oddziału |
+| POST | / | worker, manager | Dodanie urządzenia |
+| PUT | /{id} | worker, manager | Edycja urządzenia |
+| PATCH | /{id}/status | manager | Zmiana statusu |
+| DELETE | /{id} | manager | Archiwizacja (soft-delete) |
+| GET | /{id}/inspections | worker, manager | Historia przeglądów |
+| POST | /{id}/inspections | worker, manager | Nowy wpis przeglądu |
+| GET | /{id}/failures | worker, manager | Historia awarii |
+| POST | /import | admin | Import z pliku Excel (.xlsx) |
 
-**Filtrowanie listy urządzeń:**
-- `?page=1&pageSize=25` — paginacja (domyślnie 25, max 100)
-- `?sortBy=name&sortDir=desc` — sortowanie (name, inventorynumber, manufacturer, status, purchasedate, createdat)
-- `?status=Active` — filtr po statusie (Active, InRepair, Archived, Disposed)
-- `?departmentId=11111111-...` — filtr po oddziale
-- `?categoryId=22222222-...` — filtr po kategorii
-- `?search=RTG` — szukaj w nazwie, numerze inwentarzowym, producencie, modelu
+### Awarie — `/api/v1/failures`
 
-## Role i uprawnienia
+| Metoda | Endpoint | Kto może | Opis |
+|--------|----------|----------|------|
+| POST | / | nurse, worker, manager | Zgłoszenie awarii |
+| GET | / | wszyscy zalogowani | Lista z filtrowaniem i paginacją |
+| GET | /{id} | wszyscy zalogowani | Szczegóły awarii |
+| PATCH | /{id}/status | worker, manager | Zmiana statusu |
+| PATCH | /{id}/assign | worker, manager | Przypisanie serwisanta |
+| PATCH | /{id}/resolve | worker, manager | Zamknięcie z kosztem naprawy |
+| GET | /{id}/history | worker, manager | Historia zmian statusu |
 
-System ma cztery role. Każda rola widzi i może robić inne rzeczy:
+### Słowniki — `/api/v1/categories`, `/api/v1/departments`, `/api/v1/service-providers`
 
-**Nurse (Pielęgniarka)** — widzi urządzenia swojego oddziału, może zgłaszać awarie. Nie może dodawać ani edytować urządzeń.
+| Metoda | Endpoint | Kto może | Opis |
+|--------|----------|----------|------|
+| GET | / | wszyscy zalogowani | Lista |
+| GET | /{id} | wszyscy zalogowani | Szczegóły |
+| POST | / | manager, admin | Dodanie |
+| PUT | /{id} | manager, admin | Edycja |
+| DELETE | /{id} | admin | Usunięcie |
 
-**EquipmentWorker (Pracownik DAM)** — widzi wszystkie urządzenia, może je dodawać, edytować, dodawać przeglądy, obsługiwać awarie. Nie może kasować urządzeń ani zmieniać statusu na "disposed".
+### Raporty — `/api/v1/reports`
 
-**EquipmentManager (Kierownik DAM)** — wszystko co worker, plus może kasować urządzenia (soft-delete) i zmieniać ich status.
+| Metoda | Endpoint | Kto może | Opis |
+|--------|----------|----------|------|
+| POST | /equipment | worker, manager | Raport urządzeń (PDF/Excel) |
+| POST | /failures | worker, manager | Raport awarii z kosztami |
+| POST | /inspections | worker, manager | Raport przeglądów |
+| GET | /export/gdpr/{userId} | admin | Eksport danych GDPR |
 
-**Administrator** — zarządza kontami użytkowników, importuje dane z Excela. Nie operuje bezpośrednio na urządzeniach (od tego jest worker/manager).
+### Powiadomienia — `/api/v1/notifications`
 
-## Dane testowe (seed)
-
-Przy starcie w trybie dev system automatycznie tworzy:
-
-**3 oddziały:** Chirurgia (CHIR), Kardiologia (KARD), Intensywna Terapia (OIT)
-
-**4 kategorie urządzeń:** Aparatura diagnostyczna, Aparatura terapeutyczna, Sprzęt laboratoryjny, Wyposażenie pomocnicze
-
-**Stałe ID do testów:**
-- Oddział Chirurgii: `11111111-1111-1111-1111-111111111111`
-- Aparatura diagnostyczna: `22222222-2222-2222-2222-222222222222`
-- Admin: `33333333-3333-3333-3333-333333333333`
-- Worker: `44444444-4444-4444-4444-444444444444`
-- Manager: `55555555-5555-5555-5555-555555555555`
-
-## Architektura
-
-Projekt jest zbudowany w Clean Architecture — cztery warstwy, zależności płyną do wewnątrz:
-
-```
-backend/
-├── src/
-│   ├── Trisecmed.Domain/           # Encje, enumy, interfejsy — zero zależności
-│   ├── Trisecmed.Application/      # Logika biznesowa — komendy, zapytania, walidacja
-│   ├── Trisecmed.Infrastructure/   # Baza danych, repozytoria, JWT, BCrypt, Excel
-│   └── Trisecmed.API/              # Kontrolery HTTP, middleware, konfiguracja
-├── tests/
-│   ├── Trisecmed.Unit.Tests/       # Testy jednostkowe
-│   └── Trisecmed.Integration.Tests/ # Testy integracyjne
-└── Dockerfile
-```
-
-**Domain** nie zależy od niczego — to czyste klasy C# opisujące co system przechowuje (Device, User, Failure, Inspection...).
-
-**Application** zawiera logikę biznesową. Każda operacja to osobna klasa — np. `CreateDeviceCommand` + `CreateDeviceHandler`. Walidacja jest w osobnych klasach (FluentValidation). Application zależy tylko od Domain.
-
-**Infrastructure** to implementacja techniczna — Entity Framework, repozytoria, JWT, BCrypt. Zależy od Application i Domain.
-
-**API** to warstwa wejściowa — kontrolery REST, middleware, konfiguracja DI. Zależy od wszystkich.
+| Metoda | Endpoint | Kto może | Opis |
+|--------|----------|----------|------|
+| GET | / | worker, manager, admin | Lista powiadomień |
 
 ## Baza danych
 
-PostgreSQL 16, dostępna na `localhost:5432` (user: `trisecmed_user`, password: `dev_password_123`, baza: `trisecmed`). Można podłączyć się pgAdminem, DBeaverem albo psqlem.
+PostgreSQL 16, dostępna na `localhost:5432`:
+- **User:** `trisecmed_user`
+- **Password:** `dev_password_123`
+- **Database:** `trisecmed`
 
-Migracje są automatyczne przy starcie w trybie dev. Żeby dodać nową migrację ręcznie:
+Można podłączyć się pgAdminem, DBeaverem lub psqlem. Migracje są automatyczne przy starcie w trybie dev.
+
+Żeby dodać nową migrację:
 
 ```bash
 cd backend
@@ -203,32 +251,41 @@ dotnet ef migrations add NazwaMigracji \
   --configuration Release
 ```
 
-## Testy automatyczne
+## Testy
 
 ```bash
 cd backend
 dotnet test --configuration Release
 ```
 
-Aktualnie jest 32 testów: 9 domain, 19 application (walidatory, Result, PagedResult), 4 integracyjne.
-
-## CI/CD
-
-GitHub Actions (`.github/workflows/ci.yml`) — przy każdym pushu buduje projekt, uruchamia testy z prawdziwą bazą PostgreSQL i sprawdza czy Docker build przechodzi.
-
 ## Porty
 
 | Usługa | Port |
 |--------|------|
-| API (Docker) | 5000 |
-| API (lokalne) | 5008 |
+| Frontend (Blazor WASM) | 5002 |
+| Backend API (Docker) | 5000 |
 | PostgreSQL | 5432 |
 | Nginx | 80 |
 
+## Powiadomienia email
+
+System wysyła automatyczne powiadomienia:
+- **Zbliżający się przegląd** — codziennie o 7:00, dla urządzeń z przeglądem w ciągu 30 dni
+- **Wygasająca gwarancja** — codziennie o 8:00, dla urządzeń z gwarancją w ciągu 14 dni
+- **Nowa awaria** — natychmiast po zgłoszeniu, do Worker/Manager z tego samego oddziału
+
+W trybie dev SMTP wskazuje na `localhost:1025` (nie ma serwera mailowego). Powiadomienia zapisują się do bazy, ale emaile nie dochodzą. Aby testować emaile, podłącz [Mailpit](https://github.com/axllent/mailpit):
+
+```bash
+docker run -d -p 1025:1025 -p 8025:8025 axllent/mailpit
+```
+
+Emaile będą widoczne pod `http://localhost:8025`.
+
 ## Dokumentacja
 
-- `docs/Trivaxa_Specyfikacja_Backend.pdf` — pełna specyfikacja techniczna backendu
-- `docs/testy/` — scenariusze testowe do ręcznego testowania systemu
+- `docs/Trivaxa_Specyfikacja_Backend.pdf` — pełna specyfikacja techniczna
+- `docs/testy/` — scenariusze testowe do ręcznego testowania (curl)
 
 ## Stan implementacji
 
@@ -236,12 +293,13 @@ GitHub Actions (`.github/workflows/ci.yml`) — przy każdym pushu buduje projek
 |------|---------|--------|
 | 0 - Setup | Struktura, Docker, CI/CD, migracje, health check | Gotowe |
 | 1 - Tożsamość | Logowanie JWT, role RBAC, audit log | Gotowe |
-| 2 - Aparatura | Pełny CRUD urządzeń, przeglądy, import Excel | Gotowe |
-| 3 - Awarie | Zgłoszenia, statusy, historia, koszty napraw | Do zrobienia |
-| 4 - Powiadomienia | Przypomnienia o przeglądach, email, Hangfire | Do zrobienia |
-| 5 - Raporty | Generowanie PDF i Excel, eksport RODO | Do zrobienia |
-| 6 - Serwisanci | Firmy serwisowe, umowy, słowniki | Do zrobienia |
-| 7 - Testy | Testy wydajnościowe, penetracyjne, audyt | Do zrobienia |
+| 2 - Aparatura | CRUD urządzeń, przeglądy, import Excel | Gotowe |
+| 3 - Awarie | Zgłoszenia, statusy, serwisanci, koszty napraw | Gotowe |
+| 4 - Powiadomienia | Hangfire, email (przeglądy, gwarancje, awarie) | Gotowe |
+| 5 - Raporty | PDF/Excel, eksport GDPR | Gotowe |
+| 6 - Słowniki | Kategorie, oddziały, firmy serwisowe | Gotowe |
+| 7 - Testy | Jednostkowe, integracyjne, scenariusze curl | Gotowe |
+| 8 - Frontend | Blazor WASM + MudBlazor, pełne pokrycie API | Gotowe |
 
 ## Autorzy
 
