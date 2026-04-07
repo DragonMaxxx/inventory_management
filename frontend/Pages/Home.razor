@@ -1,0 +1,103 @@
+@page "/"
+@attribute [Authorize]
+@inject ApiClient Api
+
+<PageTitle>Dashboard — Trisecmed</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-4">Dashboard</MudText>
+
+<MudGrid>
+    <MudItem xs="12" sm="6" md="3">
+        <MudPaper Elevation="2" Class="pa-4">
+            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Urządzenia</MudText>
+            <MudText Typo="Typo.h4">@_deviceCount</MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudPaper Elevation="2" Class="pa-4">
+            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Otwarte awarie</MudText>
+            <MudText Typo="Typo.h4" Color="Color.Error">@_openFailures</MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudPaper Elevation="2" Class="pa-4">
+            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Kategorie</MudText>
+            <MudText Typo="Typo.h4">@_categoryCount</MudText>
+        </MudPaper>
+    </MudItem>
+    <MudItem xs="12" sm="6" md="3">
+        <MudPaper Elevation="2" Class="pa-4">
+            <MudText Typo="Typo.subtitle2" Color="Color.Secondary">Oddziały</MudText>
+            <MudText Typo="Typo.h4">@_departmentCount</MudText>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+<MudGrid Class="mt-4">
+    <MudItem xs="12" md="6">
+        <MudPaper Elevation="2" Class="pa-4">
+            <MudText Typo="Typo.h6" Class="mb-3">Ostatnie awarie</MudText>
+            @if (_recentFailures.Count == 0)
+            {
+                <MudText Color="Color.Secondary">Brak awarii</MudText>
+            }
+            else
+            {
+                <MudSimpleTable Hover="true" Dense="true">
+                    <thead>
+                        <tr>
+                            <th>Urządzenie</th>
+                            <th>Priorytet</th>
+                            <th>Status</th>
+                            <th>Data</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var f in _recentFailures)
+                        {
+                            <tr>
+                                <td>@f.DeviceName</td>
+                                <td><MudChip T="string" Size="Size.Small" Color="PriorityColor(f.Priority)">@f.Priority</MudChip></td>
+                                <td>@f.Status</td>
+                                <td>@f.CreatedAt.ToString("yyyy-MM-dd")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </MudSimpleTable>
+            }
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private int _deviceCount, _openFailures, _categoryCount, _departmentCount;
+    private List<FailureDto> _recentFailures = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var devicesTask = Api.GetDevicesAsync(1, 1);
+            var failuresTask = Api.GetFailuresAsync(1, 5, "Open");
+            var categoriesTask = Api.GetCategoriesAsync();
+            var departmentsTask = Api.GetDepartmentsAsync();
+
+            await Task.WhenAll(devicesTask, failuresTask, categoriesTask, departmentsTask);
+
+            _deviceCount = devicesTask.Result.TotalCount;
+            _openFailures = failuresTask.Result.TotalCount;
+            _recentFailures = failuresTask.Result.Items;
+            _categoryCount = categoriesTask.Result.Count;
+            _departmentCount = departmentsTask.Result.Count;
+        }
+        catch { /* silently handle on first load */ }
+    }
+
+    private Color PriorityColor(string priority) => priority switch
+    {
+        "Critical" => Color.Error,
+        "High" => Color.Warning,
+        "Medium" => Color.Info,
+        _ => Color.Default,
+    };
+}

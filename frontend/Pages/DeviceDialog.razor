@@ -1,0 +1,89 @@
+@inject ApiClient Api
+
+<MudDialog>
+    <TitleContent>@(IsEdit ? "Edytuj urządzenie" : "Nowe urządzenie")</TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudTextField @bind-Value="Model.Name" Label="Nazwa" Required="true" RequiredError="Wymagane" />
+            <MudTextField @bind-Value="Model.InventoryNumber" Label="Nr inwentarzowy" Required="true" RequiredError="Wymagane" />
+            <MudTextField @bind-Value="Model.SerialNumber" Label="Nr seryjny" />
+            <MudTextField @bind-Value="Model.Manufacturer" Label="Producent" Required="true" RequiredError="Wymagane" />
+            <MudTextField @bind-Value="Model.Model" Label="Model" Required="true" RequiredError="Wymagane" />
+            <MudSelect T="Guid?" @bind-Value="Model.CategoryId" Label="Kategoria" Required="true" RequiredError="Wymagane">
+                @foreach (var c in _categories)
+                {
+                    <MudSelectItem T="Guid?" Value="c.Id">@c.Name</MudSelectItem>
+                }
+            </MudSelect>
+            <MudSelect T="Guid?" @bind-Value="Model.DepartmentId" Label="Oddział" Required="true" RequiredError="Wymagane">
+                @foreach (var d in _departments)
+                {
+                    <MudSelectItem T="Guid?" Value="d.Id">@d.Name</MudSelectItem>
+                }
+            </MudSelect>
+            <MudDatePicker @bind-Date="Model.PurchaseDate" Label="Data zakupu" DateFormat="yyyy-MM-dd" />
+            <MudNumericField T="decimal?" @bind-Value="Model.PurchasePrice" Label="Cena zakupu" Format="N2" />
+            <MudDatePicker @bind-Date="Model.WarrantyExpires" Label="Gwarancja do" DateFormat="yyyy-MM-dd" />
+            <MudDatePicker @bind-Date="Model.NextInspectionDate" Label="Następny przegląd" DateFormat="yyyy-MM-dd" />
+            <MudTextField @bind-Value="Model.Notes" Label="Notatki" Lines="3" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Anuluj</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">Zapisz</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public DeviceFormModel Model { get; set; } = new();
+    [Parameter] public bool IsEdit { get; set; }
+    [Parameter] public Guid? DeviceId { get; set; }
+
+    private MudForm _form = null!;
+    private List<CategoryDto> _categories = [];
+    private List<DepartmentDto> _departments = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var t1 = Api.GetCategoriesAsync();
+        var t2 = Api.GetDepartmentsAsync();
+        _categories = await t1;
+        _departments = await t2;
+    }
+
+    private async Task Submit()
+    {
+        await _form.ValidateAsync();
+        if (!_form.IsValid) return;
+
+        var payload = new
+        {
+            name = Model.Name,
+            inventoryNumber = Model.InventoryNumber,
+            serialNumber = Model.SerialNumber,
+            manufacturer = Model.Manufacturer,
+            model = Model.Model,
+            categoryId = Model.CategoryId,
+            departmentId = Model.DepartmentId,
+            purchaseDate = Model.PurchaseDate.HasValue ? DateOnly.FromDateTime(Model.PurchaseDate.Value).ToString("yyyy-MM-dd") : null,
+            purchasePrice = Model.PurchasePrice,
+            warrantyExpires = Model.WarrantyExpires.HasValue ? DateOnly.FromDateTime(Model.WarrantyExpires.Value).ToString("yyyy-MM-dd") : null,
+            nextInspectionDate = Model.NextInspectionDate.HasValue ? DateOnly.FromDateTime(Model.NextInspectionDate.Value).ToString("yyyy-MM-dd") : null,
+            notes = Model.Notes
+        };
+
+        HttpResponseMessage res;
+        if (IsEdit && DeviceId.HasValue)
+            res = await Api.UpdateDeviceAsync(DeviceId.Value, payload);
+        else
+            res = await Api.CreateDeviceAsync(payload);
+
+        if (res.IsSuccessStatusCode)
+            MudDialog.Close(DialogResult.Ok(true));
+        else
+            MudDialog.Close(DialogResult.Cancel());
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

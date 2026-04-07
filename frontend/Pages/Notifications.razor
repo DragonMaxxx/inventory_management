@@ -1,0 +1,97 @@
+@page "/notifications"
+@attribute [Authorize(Roles = "EquipmentWorker,EquipmentManager,Administrator")]
+@inject ApiClient Api
+@inject ISnackbar Snackbar
+
+<PageTitle>Powiadomienia — Trisecmed</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-4">Powiadomienia</MudText>
+
+<MudPaper Elevation="2" Class="pa-4">
+    <MudGrid Class="mb-4">
+        <MudItem xs="12" sm="4">
+            <MudSelect T="bool?" @bind-Value="_sentFilter" Label="Status wysyłki" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                <MudSelectItem T="bool?" Value="true">Wysłane</MudSelectItem>
+                <MudSelectItem T="bool?" Value="false">Niewysłane</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="4" Class="d-flex align-center">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="LoadData">Filtruj</MudButton>
+        </MudItem>
+    </MudGrid>
+
+    <MudTable Items="_items" Hover="true" Striped="true" Loading="_loading" Dense="true">
+        <HeaderContent>
+            <MudTh>Data</MudTh>
+            <MudTh>Typ</MudTh>
+            <MudTh>Temat</MudTh>
+            <MudTh>Odbiorca</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Błąd</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.CreatedAt.ToString("yyyy-MM-dd HH:mm")</MudTd>
+            <MudTd><MudChip T="string" Size="Size.Small" Color="TypeColor(context.Type)">@TypeLabel(context.Type)</MudChip></MudTd>
+            <MudTd>@context.Subject</MudTd>
+            <MudTd>@context.RecipientEmail</MudTd>
+            <MudTd>
+                @if (context.IsSent)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Success">Wysłane</MudChip>
+                }
+                else
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Error">Błąd</MudChip>
+                }
+            </MudTd>
+            <MudTd Style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" Title="@context.Error">@(context.Error ?? "—")</MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Color="Color.Secondary">Brak powiadomień</MudText>
+        </NoRecordsContent>
+    </MudTable>
+
+    <div class="d-flex justify-center mt-4">
+        <MudPagination Count="_totalPages" Selected="_page" SelectedChanged="OnPageChanged" />
+    </div>
+</MudPaper>
+
+@code {
+    private List<NotificationDto> _items = [];
+    private bool? _sentFilter;
+    private int _page = 1, _totalPages;
+    private bool _loading;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        try
+        {
+            var result = await Api.GetNotificationsAsync(_page, 25, null, _sentFilter);
+            _items = result.Items;
+            _totalPages = Math.Max(1, result.TotalPages);
+        }
+        catch (Exception ex) { Snackbar.Add($"Błąd: {ex.Message}", Severity.Error); }
+        _loading = false;
+    }
+
+    private async Task OnPageChanged(int page) { _page = page; await LoadData(); }
+
+    private static string TypeLabel(string type) => type switch
+    {
+        "FailureReport" => "Awaria",
+        "InspectionDue" => "Przegląd",
+        "WarrantyExpiration" => "Gwarancja",
+        _ => type,
+    };
+
+    private static Color TypeColor(string type) => type switch
+    {
+        "FailureReport" => Color.Error,
+        "InspectionDue" => Color.Warning,
+        "WarrantyExpiration" => Color.Info,
+        _ => Color.Default,
+    };
+}

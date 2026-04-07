@@ -1,0 +1,101 @@
+@page "/service-providers"
+@attribute [Authorize(Roles = "EquipmentWorker,EquipmentManager,Administrator")]
+@inject ApiClient Api
+@inject AuthService Auth
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject IJSRuntime JS
+
+<PageTitle>Serwisanci — Trisecmed</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-4">Firmy serwisowe</MudText>
+
+<MudPaper Elevation="2" Class="pa-4">
+    @if (CanEdit)
+    {
+        <div class="d-flex justify-end mb-4">
+            <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.Add" OnClick="OpenCreate">Dodaj</MudButton>
+        </div>
+    }
+
+    <MudTable Items="_items" Hover="true" Striped="true" Loading="_loading" Dense="true">
+        <HeaderContent>
+            <MudTh>Nazwa</MudTh>
+            <MudTh>Osoba kontaktowa</MudTh>
+            <MudTh>Email</MudTh>
+            <MudTh>Telefon</MudTh>
+            <MudTh>NIP</MudTh>
+            @if (CanEdit)
+            {
+                <MudTh Style="width:120px">Akcje</MudTh>
+            }
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.Name</MudTd>
+            <MudTd>@(context.ContactPerson ?? "—")</MudTd>
+            <MudTd>@(context.Email ?? "—")</MudTd>
+            <MudTd>@(context.Phone ?? "—")</MudTd>
+            <MudTd>@(context.TaxId ?? "—")</MudTd>
+            @if (CanEdit)
+            {
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="() => OpenEdit(context)" />
+                    @if (CanDelete)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="() => Delete(context)" />
+                    }
+                </MudTd>
+            }
+        </RowTemplate>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private List<ServiceProviderDto> _items = [];
+    private bool _loading = true;
+    private string? _role;
+
+    private bool CanEdit => _role is "EquipmentManager" or "Administrator";
+    private bool CanDelete => _role is "Administrator";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _role = await Auth.GetUserRoleAsync();
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        _items = await Api.GetServiceProvidersAsync();
+        _loading = false;
+    }
+
+    private async Task OpenCreate()
+    {
+        var parameters = new DialogParameters<ServiceProviderDialog> { { x => x.Model, new ServiceProviderFormModel() }, { x => x.IsEdit, false } };
+        var dialog = await DialogService.ShowAsync<ServiceProviderDialog>("Nowa firma serwisowa", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is { Canceled: false }) { Snackbar.Add("Firma dodana", Severity.Success); await LoadData(); }
+    }
+
+    private async Task OpenEdit(ServiceProviderDto item)
+    {
+        var model = new ServiceProviderFormModel { Name = item.Name, ContactPerson = item.ContactPerson, Email = item.Email, Phone = item.Phone, TaxId = item.TaxId };
+        var parameters = new DialogParameters<ServiceProviderDialog> { { x => x.Model, model }, { x => x.IsEdit, true }, { x => x.ItemId, item.Id } };
+        var dialog = await DialogService.ShowAsync<ServiceProviderDialog>("Edytuj firmę serwisową", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is { Canceled: false }) { Snackbar.Add("Firma zaktualizowana", Severity.Success); await LoadData(); }
+    }
+
+    private async Task Delete(ServiceProviderDto item)
+    {
+        var confirm = await JS.InvokeAsync<bool>("confirm", $"Czy na pewno usunąć \"{item.Name}\"?");
+        if (confirm)
+        {
+            var res = await Api.DeleteServiceProviderAsync(item.Id);
+            if (res.IsSuccessStatusCode) { Snackbar.Add("Usunięto", Severity.Success); await LoadData(); }
+            else Snackbar.Add("Błąd usuwania", Severity.Error);
+        }
+    }
+}

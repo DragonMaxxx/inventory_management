@@ -119,7 +119,7 @@ public class FailuresController : ControllerBase
 
     /// <summary>Historia zmian statusu awarii</summary>
     [HttpGet("{id:guid}/history")]
-    [Authorize(Roles = "EquipmentWorker,EquipmentManager,Administrator")]
+    [Authorize(Roles = "EquipmentWorker,EquipmentManager")]
     public async Task<IActionResult> GetHistory(Guid id)
     {
         var result = await _mediator.Send(new GetFailureHistoryQuery(id));

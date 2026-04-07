@@ -1,0 +1,42 @@
+@inject ApiClient Api
+
+<MudDialog>
+    <TitleContent>@(IsEdit ? "Edytuj firmę serwisową" : "Nowa firma serwisowa")</TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudTextField @bind-Value="Model.Name" Label="Nazwa" Required="true" RequiredError="Wymagane" />
+            <MudTextField @bind-Value="Model.ContactPerson" Label="Osoba kontaktowa" />
+            <MudTextField @bind-Value="Model.Email" Label="Email" InputType="InputType.Email" />
+            <MudTextField @bind-Value="Model.Phone" Label="Telefon" />
+            <MudTextField @bind-Value="Model.TaxId" Label="NIP" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Anuluj</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">Zapisz</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public ServiceProviderFormModel Model { get; set; } = new();
+    [Parameter] public bool IsEdit { get; set; }
+    [Parameter] public Guid? ItemId { get; set; }
+
+    private MudForm _form = null!;
+
+    private async Task Submit()
+    {
+        await _form.ValidateAsync();
+        if (!_form.IsValid) return;
+
+        var payload = new { name = Model.Name, contactPerson = Model.ContactPerson, email = Model.Email, phone = Model.Phone, taxId = Model.TaxId };
+        var res = IsEdit && ItemId.HasValue
+            ? await Api.UpdateServiceProviderAsync(ItemId.Value, payload)
+            : await Api.CreateServiceProviderAsync(payload);
+
+        MudDialog.Close(res.IsSuccessStatusCode ? DialogResult.Ok(true) : DialogResult.Cancel());
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

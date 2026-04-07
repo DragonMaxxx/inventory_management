@@ -1,0 +1,64 @@
+@page "/login"
+@inject AuthService AuthService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+
+<MudContainer MaxWidth="MaxWidth.ExtraSmall" Class="mt-16">
+    <MudPaper Elevation="3" Class="pa-8">
+        <MudText Typo="Typo.h4" Align="Align.Center" Class="mb-4">Trisecmed</MudText>
+        <MudText Typo="Typo.subtitle1" Align="Align.Center" Color="Color.Secondary" Class="mb-6">
+            System ewidencji aparatury medycznej
+        </MudText>
+
+        @if (_error is not null)
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+        }
+
+        <MudTextField @bind-Value="_email" Label="Email" Variant="Variant.Outlined" FullWidth="true"
+                      InputType="InputType.Email" Class="mb-3" Disabled="_loading" />
+        <MudTextField @bind-Value="_password" Label="Hasło" Variant="Variant.Outlined" FullWidth="true"
+                      InputType="InputType.Password" Class="mb-4" Disabled="_loading"
+                      OnKeyDown="OnKeyDown" />
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                   OnClick="HandleLogin" Disabled="_loading">
+            @if (_loading)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            Zaloguj się
+        </MudButton>
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private string _email = "";
+    private string _password = "";
+    private string? _error;
+    private bool _loading;
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await HandleLogin();
+    }
+
+    private async Task HandleLogin()
+    {
+        _error = null;
+        _loading = true;
+
+        var (success, error) = await AuthService.LoginAsync(_email, _password);
+
+        if (success)
+        {
+            ((TrisecmedAuthStateProvider)AuthStateProvider).NotifyAuthChanged();
+            Nav.NavigateTo("/");
+        }
+        else
+        {
+            _error = error;
+        }
+
+        _loading = false;
+    }
+}

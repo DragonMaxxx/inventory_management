@@ -1,0 +1,130 @@
+@page "/failures"
+@attribute [Authorize]
+@inject ApiClient Api
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Awarie — Trisecmed</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-4">Awarie</MudText>
+
+<MudPaper Elevation="2" Class="pa-4">
+    <MudGrid>
+        <MudItem xs="12" sm="4" md="3">
+            <MudSelect T="string" @bind-Value="_statusFilter" Label="Status" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                <MudSelectItem Value="@("Open")">Otwarte</MudSelectItem>
+                <MudSelectItem Value="@("InProgress")">W trakcie</MudSelectItem>
+                <MudSelectItem Value="@("WaitingParts")">Oczekuje na części</MudSelectItem>
+                <MudSelectItem Value="@("Resolved")">Rozwiązane</MudSelectItem>
+                <MudSelectItem Value="@("Closed")">Zamknięte</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="4" md="3">
+            <MudSelect T="string" @bind-Value="_priorityFilter" Label="Priorytet" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                <MudSelectItem Value="@("Critical")">Krytyczny</MudSelectItem>
+                <MudSelectItem Value="@("High")">Wysoki</MudSelectItem>
+                <MudSelectItem Value="@("Medium")">Średni</MudSelectItem>
+                <MudSelectItem Value="@("Low")">Niski</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="4" md="6" Class="d-flex align-center justify-end gap-2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="LoadData">Filtruj</MudButton>
+            <AuthorizeView Roles="Nurse,EquipmentWorker,EquipmentManager">
+                <MudButton Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.Add" OnClick="OpenCreateDialog">Zgłoś awarię</MudButton>
+            </AuthorizeView>
+        </MudItem>
+    </MudGrid>
+
+    <MudTable Items="_failures" Hover="true" Striped="true" Loading="_loading" Class="mt-4" Dense="true">
+        <HeaderContent>
+            <MudTh>Urządzenie</MudTh>
+            <MudTh>Nr inw.</MudTh>
+            <MudTh>Priorytet</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Opis</MudTh>
+            <MudTh>Oddział</MudTh>
+            <MudTh>Zgłosił</MudTh>
+            <MudTh>Serwisant</MudTh>
+            <MudTh>Data</MudTh>
+            <MudTh>Koszt</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.DeviceName</MudTd>
+            <MudTd><code>@context.DeviceInventoryNumber</code></MudTd>
+            <MudTd><MudChip T="string" Size="Size.Small" Color="PriorityColor(context.Priority)">@PriorityLabel(context.Priority)</MudChip></MudTd>
+            <MudTd><MudChip T="string" Size="Size.Small" Color="StatusColor(context.Status)">@StatusLabel(context.Status)</MudChip></MudTd>
+            <MudTd Style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" Title="@context.Description">@context.Description</MudTd>
+            <MudTd>@context.DepartmentName</MudTd>
+            <MudTd>@context.ReportedByUserName</MudTd>
+            <MudTd>@(context.ServiceProviderName ?? "—")</MudTd>
+            <MudTd>@context.CreatedAt.ToString("yyyy-MM-dd")</MudTd>
+            <MudTd>@(context.RepairCost?.ToString("N2 zł") ?? "—")</MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Color="Color.Secondary">Brak awarii</MudText>
+        </NoRecordsContent>
+    </MudTable>
+
+    <div class="d-flex justify-center mt-4">
+        <MudPagination Count="_totalPages" Selected="_page" SelectedChanged="OnPageChanged" />
+    </div>
+</MudPaper>
+
+@code {
+    private List<FailureDto> _failures = [];
+    private string? _statusFilter, _priorityFilter;
+    private int _page = 1, _totalPages;
+    private bool _loading;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        try
+        {
+            var result = await Api.GetFailuresAsync(_page, 25, _statusFilter, _priorityFilter);
+            _failures = result.Items;
+            _totalPages = Math.Max(1, result.TotalPages);
+        }
+        catch (Exception ex) { Snackbar.Add($"Błąd: {ex.Message}", Severity.Error); }
+        _loading = false;
+    }
+
+    private async Task OnPageChanged(int page) { _page = page; await LoadData(); }
+
+    private async Task OpenCreateDialog()
+    {
+        var parameters = new DialogParameters<FailureDialog>
+        {
+            { x => x.Model, new FailureFormModel() }
+        };
+        var dialog = await DialogService.ShowAsync<FailureDialog>("Zgłoś awarię", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Snackbar.Add("Awaria zgłoszona", Severity.Success);
+            await LoadData();
+        }
+    }
+
+    private static Color PriorityColor(string p) => p switch
+    {
+        "Critical" => Color.Error, "High" => Color.Warning, "Medium" => Color.Info, _ => Color.Default,
+    };
+
+    private static Color StatusColor(string s) => s switch
+    {
+        "Open" => Color.Error, "InProgress" => Color.Warning, "WaitingParts" => Color.Info, "Resolved" => Color.Success, "Closed" => Color.Default, _ => Color.Default,
+    };
+
+    private static string PriorityLabel(string p) => p switch
+    {
+        "Critical" => "Krytyczny", "High" => "Wysoki", "Medium" => "Średni", "Low" => "Niski", _ => p,
+    };
+
+    private static string StatusLabel(string s) => s switch
+    {
+        "Open" => "Otwarta", "InProgress" => "W trakcie", "WaitingParts" => "Oczekuje", "Resolved" => "Rozwiązana", "Closed" => "Zamknięta", _ => s,
+    };
+}

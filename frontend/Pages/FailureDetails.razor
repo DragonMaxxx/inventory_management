@@ -1,0 +1,209 @@
+@page "/failures/{FailureId:guid}"
+@attribute [Authorize]
+@inject ApiClient Api
+@inject AuthService Auth
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<PageTitle>Awaria — Trisecmed</PageTitle>
+
+@if (_failure is null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else
+{
+    <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="@(() => Nav.NavigateTo("/failures"))" Class="mb-2">Powrót</MudButton>
+
+    <MudText Typo="Typo.h5" Class="mb-4">Awaria: @_failure.DeviceName</MudText>
+
+    <MudGrid>
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="2" Class="pa-4">
+                <MudText Typo="Typo.h6" Class="mb-3">Szczegóły</MudText>
+                <MudSimpleTable Dense="true" Hover="true">
+                    <tbody>
+                        <tr><td><strong>Urządzenie</strong></td><td>@_failure.DeviceName (@_failure.DeviceInventoryNumber)</td></tr>
+                        <tr><td><strong>Oddział</strong></td><td>@_failure.DepartmentName</td></tr>
+                        <tr><td><strong>Zgłosił</strong></td><td>@_failure.ReportedByUserName</td></tr>
+                        <tr><td><strong>Data zgłoszenia</strong></td><td>@_failure.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td></tr>
+                        <tr><td><strong>Priorytet</strong></td><td><MudChip T="string" Size="Size.Small" Color="PriorityColor(_failure.Priority)">@_failure.Priority</MudChip></td></tr>
+                        <tr><td><strong>Status</strong></td><td><MudChip T="string" Size="Size.Small" Color="FStatusColor(_failure.Status)">@_failure.Status</MudChip></td></tr>
+                        <tr><td><strong>Serwisant</strong></td><td>@(_failure.ServiceProviderName ?? "Nieprzypisany")</td></tr>
+                        <tr><td><strong>Koszt naprawy</strong></td><td>@(_failure.RepairCost?.ToString("N2 zł") ?? "—")</td></tr>
+                        <tr><td><strong>Data rozwiązania</strong></td><td>@(_failure.ResolvedAt?.ToString("yyyy-MM-dd HH:mm") ?? "—")</td></tr>
+                    </tbody>
+                </MudSimpleTable>
+                <MudText Typo="Typo.subtitle2" Class="mt-3">Opis</MudText>
+                <MudText Typo="Typo.body2">@_failure.Description</MudText>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            @if (CanManage)
+            {
+                <MudPaper Elevation="2" Class="pa-4 mb-4">
+                    <MudText Typo="Typo.h6" Class="mb-3">Akcje</MudText>
+
+                    @if (_failure.Status is not "Resolved" and not "Closed")
+                    {
+                        <MudText Typo="Typo.subtitle2" Class="mb-2">Zmień status</MudText>
+                        <div class="d-flex gap-2 mb-4">
+                            <MudSelect T="string" @bind-Value="_newStatus" Label="Nowy status" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:200px">
+                                <MudSelectItem Value="@("Open")">Otwarta</MudSelectItem>
+                                <MudSelectItem Value="@("InProgress")">W trakcie</MudSelectItem>
+                                <MudSelectItem Value="@("WaitingParts")">Oczekuje na części</MudSelectItem>
+                                <MudSelectItem Value="@("Closed")">Zamknięta</MudSelectItem>
+                            </MudSelect>
+                            <MudTextField @bind-Value="_statusNotes" Label="Notatka" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:250px" />
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ChangeStatus" Disabled="string.IsNullOrEmpty(_newStatus)">Zmień</MudButton>
+                        </div>
+
+                        <MudDivider Class="my-3" />
+
+                        <MudText Typo="Typo.subtitle2" Class="mb-2">Przypisz serwisanta</MudText>
+                        <div class="d-flex gap-2 mb-4">
+                            <MudSelect T="Guid?" @bind-Value="_selectedServiceProvider" Label="Firma serwisowa" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:300px">
+                                @foreach (var sp in _serviceProviders)
+                                {
+                                    <MudSelectItem T="Guid?" Value="sp.Id">@sp.Name</MudSelectItem>
+                                }
+                            </MudSelect>
+                            <MudButton Variant="Variant.Filled" Color="Color.Warning" OnClick="AssignProvider" Disabled="!_selectedServiceProvider.HasValue">Przypisz</MudButton>
+                        </div>
+
+                        <MudDivider Class="my-3" />
+
+                        <MudText Typo="Typo.subtitle2" Class="mb-2">Rozwiąż awarię</MudText>
+                        <MudNumericField T="decimal?" @bind-Value="_repairCost" Label="Koszt naprawy" Format="N2" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-2" />
+                        <MudTextField @bind-Value="_repairDescription" Label="Opis naprawy" Lines="2" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-2" />
+                        <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="Resolve">Rozwiąż</MudButton>
+                    }
+                    else
+                    {
+                        <MudAlert Severity="Severity.Info">Awaria została rozwiązana/zamknięta.</MudAlert>
+                    }
+                </MudPaper>
+            }
+
+            @if (CanManage)
+            {
+                <MudPaper Elevation="2" Class="pa-4">
+                    <MudText Typo="Typo.h6" Class="mb-3">Historia zmian</MudText>
+                    @if (_history.Count == 0)
+                    {
+                        <MudText Color="Color.Secondary">Brak historii</MudText>
+                    }
+                    else
+                    {
+                        <MudSimpleTable Dense="true" Hover="true">
+                            <thead>
+                                <tr><th>Data</th><th>Z</th><th>Na</th><th>Zmienił</th><th>Notatka</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var h in _history)
+                                {
+                                    <tr>
+                                        <td>@h.ChangedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                                        <td>@(h.OldStatus ?? "—")</td>
+                                        <td><MudChip T="string" Size="Size.Small" Color="FStatusColor(h.NewStatus)">@h.NewStatus</MudChip></td>
+                                        <td>@(h.ChangedByUserName ?? "—")</td>
+                                        <td>@(h.Notes ?? "—")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </MudSimpleTable>
+                    }
+                </MudPaper>
+            }
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    [Parameter] public Guid FailureId { get; set; }
+
+    private FailureDto? _failure;
+    private List<FailureStatusHistoryDto> _history = [];
+    private List<ServiceProviderDto> _serviceProviders = [];
+    private string? _role, _newStatus, _statusNotes, _repairDescription;
+    private Guid? _selectedServiceProvider;
+    private decimal? _repairCost;
+
+    private bool CanManage => _role is "EquipmentWorker" or "EquipmentManager";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _role = await Auth.GetUserRoleAsync();
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            _failure = await Api.GetFailureAsync(FailureId);
+            if (CanManage)
+            {
+                var t1 = Api.GetFailureHistoryAsync(FailureId);
+                var t2 = Api.GetServiceProvidersAsync();
+                _history = await t1;
+                _serviceProviders = await t2;
+            }
+        }
+        catch (Exception ex) { Snackbar.Add($"Błąd: {ex.Message}", Severity.Error); }
+    }
+
+    private async Task ChangeStatus()
+    {
+        if (string.IsNullOrEmpty(_newStatus)) return;
+        var res = await Api.ChangeFailureStatusAsync(FailureId, new { status = _newStatus, notes = _statusNotes });
+        if (res.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Status zmieniony", Severity.Success);
+            _newStatus = null; _statusNotes = null;
+            await LoadData();
+        }
+        else Snackbar.Add("Błąd zmiany statusu", Severity.Error);
+    }
+
+    private async Task AssignProvider()
+    {
+        if (!_selectedServiceProvider.HasValue) return;
+        var res = await Api.AssignServiceProviderAsync(FailureId, new { serviceProviderId = _selectedServiceProvider.Value });
+        if (res.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Serwisant przypisany", Severity.Success);
+            _selectedServiceProvider = null;
+            await LoadData();
+        }
+        else Snackbar.Add("Błąd przypisania", Severity.Error);
+    }
+
+    private async Task Resolve()
+    {
+        var res = await Api.ResolveFailureAsync(FailureId, new
+        {
+            failureId = FailureId,
+            resolvedByUserId = Guid.Empty,
+            repairCost = _repairCost,
+            repairDescription = _repairDescription
+        });
+        if (res.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Awaria rozwiązana", Severity.Success);
+            await LoadData();
+        }
+        else Snackbar.Add("Błąd rozwiązywania", Severity.Error);
+    }
+
+    private static Color PriorityColor(string p) => p switch
+    {
+        "Critical" => Color.Error, "High" => Color.Warning, "Medium" => Color.Info, _ => Color.Default,
+    };
+
+    private static Color FStatusColor(string s) => s switch
+    {
+        "Open" => Color.Error, "InProgress" => Color.Warning, "WaitingParts" => Color.Info, "Resolved" => Color.Success, "Closed" => Color.Default, _ => Color.Default,
+    };
+}

@@ -1,0 +1,63 @@
+@inject ApiClient Api
+
+<MudDialog>
+    <TitleContent>Nowy użytkownik</TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudTextField @bind-Value="Model.Email" Label="Email" Required="true" RequiredError="Wymagane" InputType="InputType.Email" />
+            <MudTextField @bind-Value="Model.FirstName" Label="Imię" Required="true" RequiredError="Wymagane" />
+            <MudTextField @bind-Value="Model.LastName" Label="Nazwisko" Required="true" RequiredError="Wymagane" />
+            <MudTextField @bind-Value="Model.Password" Label="Hasło" Required="true" RequiredError="Wymagane" InputType="InputType.Password" />
+            <MudSelect T="string" @bind-Value="Model.Role" Label="Rola" Required="true">
+                <MudSelectItem Value="@("Nurse")">Pielęgniarka</MudSelectItem>
+                <MudSelectItem Value="@("EquipmentWorker")">Technik</MudSelectItem>
+                <MudSelectItem Value="@("EquipmentManager")">Manager</MudSelectItem>
+                <MudSelectItem Value="@("Administrator")">Administrator</MudSelectItem>
+            </MudSelect>
+            <MudSelect T="Guid?" @bind-Value="Model.DepartmentId" Label="Oddział" Clearable="true">
+                @foreach (var d in _departments)
+                {
+                    <MudSelectItem T="Guid?" Value="d.Id">@d.Name</MudSelectItem>
+                }
+            </MudSelect>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Anuluj</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">Utwórz</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public UserFormModel Model { get; set; } = new();
+
+    private MudForm _form = null!;
+    private List<DepartmentDto> _departments = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _departments = await Api.GetDepartmentsAsync();
+    }
+
+    private async Task Submit()
+    {
+        await _form.ValidateAsync();
+        if (!_form.IsValid) return;
+
+        var payload = new
+        {
+            email = Model.Email,
+            firstName = Model.FirstName,
+            lastName = Model.LastName,
+            password = Model.Password,
+            role = Model.Role,
+            departmentId = Model.DepartmentId
+        };
+
+        var res = await Api.CreateUserAsync(payload);
+        MudDialog.Close(res.IsSuccessStatusCode ? DialogResult.Ok(true) : DialogResult.Cancel());
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

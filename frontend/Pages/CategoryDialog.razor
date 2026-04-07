@@ -1,0 +1,39 @@
+@inject ApiClient Api
+
+<MudDialog>
+    <TitleContent>@(IsEdit ? "Edytuj kategorię" : "Nowa kategoria")</TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudTextField @bind-Value="Model.Name" Label="Nazwa" Required="true" RequiredError="Wymagane" />
+            <MudTextField @bind-Value="Model.Description" Label="Opis" Lines="2" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Anuluj</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">Zapisz</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public CategoryFormModel Model { get; set; } = new();
+    [Parameter] public bool IsEdit { get; set; }
+    [Parameter] public Guid? ItemId { get; set; }
+
+    private MudForm _form = null!;
+
+    private async Task Submit()
+    {
+        await _form.ValidateAsync();
+        if (!_form.IsValid) return;
+
+        var payload = new { name = Model.Name, description = Model.Description };
+        var res = IsEdit && ItemId.HasValue
+            ? await Api.UpdateCategoryAsync(ItemId.Value, payload)
+            : await Api.CreateCategoryAsync(payload);
+
+        MudDialog.Close(res.IsSuccessStatusCode ? DialogResult.Ok(true) : DialogResult.Cancel());
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

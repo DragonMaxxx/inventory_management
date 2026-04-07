@@ -13,6 +13,8 @@ using Trisecmed.Infrastructure;
 using Trisecmed.Infrastructure.Data;
 using Trisecmed.Infrastructure.Jobs;
 
+QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
     .CreateBootstrapLogger();

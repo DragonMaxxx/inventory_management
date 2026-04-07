@@ -1,0 +1,86 @@
+@page "/users"
+@attribute [Authorize(Roles = "Administrator")]
+@inject ApiClient Api
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Użytkownicy — Trisecmed</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-4">Użytkownicy</MudText>
+
+<MudPaper Elevation="2" Class="pa-4">
+    <div class="d-flex justify-end mb-4">
+        <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="OpenCreate">Dodaj użytkownika</MudButton>
+    </div>
+
+    <MudTable Items="_users" Hover="true" Striped="true" Loading="_loading" Dense="true">
+        <HeaderContent>
+            <MudTh>Imię i nazwisko</MudTh>
+            <MudTh>Email</MudTh>
+            <MudTh>Rola</MudTh>
+            <MudTh>Oddział</MudTh>
+            <MudTh>Status</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.FirstName @context.LastName</MudTd>
+            <MudTd>@context.Email</MudTd>
+            <MudTd><MudChip T="string" Size="Size.Small" Color="RoleColor(context.Role)">@RoleLabel(context.Role)</MudChip></MudTd>
+            <MudTd>@(context.DepartmentName ?? "—")</MudTd>
+            <MudTd>
+                @if (context.IsActive)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Success">Aktywny</MudChip>
+                }
+                else
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Default">Nieaktywny</MudChip>
+                }
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private List<UserDto> _users = [];
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        try { _users = await Api.GetUsersAsync(); }
+        catch (Exception ex) { Snackbar.Add($"Błąd: {ex.Message}", Severity.Error); }
+        _loading = false;
+    }
+
+    private async Task OpenCreate()
+    {
+        var parameters = new DialogParameters<UserDialog> { { x => x.Model, new UserFormModel() } };
+        var dialog = await DialogService.ShowAsync<UserDialog>("Nowy użytkownik", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Snackbar.Add("Użytkownik utworzony", Severity.Success);
+            await LoadData();
+        }
+    }
+
+    private static string RoleLabel(string role) => role switch
+    {
+        "Administrator" => "Administrator",
+        "EquipmentManager" => "Manager",
+        "EquipmentWorker" => "Technik",
+        "Nurse" => "Pielęgniarka",
+        _ => role,
+    };
+
+    private static Color RoleColor(string role) => role switch
+    {
+        "Administrator" => Color.Error,
+        "EquipmentManager" => Color.Warning,
+        "EquipmentWorker" => Color.Info,
+        "Nurse" => Color.Success,
+        _ => Color.Default,
+    };
+}

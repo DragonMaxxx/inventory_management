@@ -1,0 +1,47 @@
+@inject ApiClient Api
+
+<MudDialog>
+    <TitleContent>Nowy przegląd</TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudDatePicker @bind-Date="Model.InspectionDate" Label="Data przeglądu" Required="true" DateFormat="yyyy-MM-dd" />
+            <MudTextField @bind-Value="Model.PerformedBy" Label="Wykonał" />
+            <MudTextField @bind-Value="Model.Result" Label="Wynik" Lines="2" />
+            <MudTextField @bind-Value="Model.Notes" Label="Notatki" Lines="2" />
+            <MudDatePicker @bind-Date="Model.NextInspectionDate" Label="Następny przegląd" DateFormat="yyyy-MM-dd" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Anuluj</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">Zapisz</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public Guid DeviceId { get; set; }
+    [Parameter] public InspectionFormModel Model { get; set; } = new();
+
+    private MudForm _form = null!;
+
+    private async Task Submit()
+    {
+        await _form.ValidateAsync();
+        if (!_form.IsValid) return;
+
+        var payload = new
+        {
+            deviceId = DeviceId,
+            inspectionDate = Model.InspectionDate.HasValue ? DateOnly.FromDateTime(Model.InspectionDate.Value).ToString("yyyy-MM-dd") : null,
+            nextInspectionDate = Model.NextInspectionDate.HasValue ? DateOnly.FromDateTime(Model.NextInspectionDate.Value).ToString("yyyy-MM-dd") : null,
+            result = Model.Result,
+            notes = Model.Notes,
+            performedBy = Model.PerformedBy
+        };
+
+        var res = await Api.CreateInspectionAsync(DeviceId, payload);
+        MudDialog.Close(res.IsSuccessStatusCode ? DialogResult.Ok(true) : DialogResult.Cancel());
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

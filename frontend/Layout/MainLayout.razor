@@ -1,0 +1,112 @@
+@inherits LayoutComponentBase
+@inject AuthService AuthService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
+                       OnClick="@ToggleDrawer" />
+        <MudText Typo="Typo.h6" Class="ml-2">Trisecmed</MudText>
+        <MudSpacer />
+        <AuthorizeView>
+            <Authorized>
+                <MudChip T="string" Color="Color.Primary" Variant="Variant.Outlined" Size="Size.Small" Class="mr-2">
+                    @context.User.FindFirst("email")?.Value
+                </MudChip>
+                <MudChip T="string" Color="Color.Secondary" Variant="Variant.Filled" Size="Size.Small" Class="mr-2">
+                    @RoleLabel(context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value)
+                </MudChip>
+                <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit" OnClick="Logout" />
+            </Authorized>
+        </AuthorizeView>
+    </MudAppBar>
+
+    <AuthorizeView>
+        <Authorized>
+            <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
+                <MudNavMenu>
+                    <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">
+                        Dashboard
+                    </MudNavLink>
+
+                    <MudText Typo="Typo.overline" Class="px-4 mt-3 mb-1" Color="Color.Secondary">Ewidencja</MudText>
+                    <MudNavLink Href="/devices" Icon="@Icons.Material.Filled.DevicesOther">
+                        Urządzenia
+                    </MudNavLink>
+                    <MudNavLink Href="/failures" Icon="@Icons.Material.Filled.Warning">
+                        Awarie
+                    </MudNavLink>
+
+                    <MudText Typo="Typo.overline" Class="px-4 mt-3 mb-1" Color="Color.Secondary">Słowniki</MudText>
+                    <MudNavLink Href="/categories" Icon="@Icons.Material.Filled.Category">
+                        Kategorie
+                    </MudNavLink>
+                    <MudNavLink Href="/departments" Icon="@Icons.Material.Filled.Business">
+                        Oddziały
+                    </MudNavLink>
+                    @if (IsInRole(context, "EquipmentWorker", "EquipmentManager", "Administrator"))
+                    {
+                        <MudNavLink Href="/service-providers" Icon="@Icons.Material.Filled.Engineering">
+                            Serwisanci
+                        </MudNavLink>
+                    }
+
+                    @if (IsInRole(context, "EquipmentWorker", "EquipmentManager"))
+                    {
+                        <MudText Typo="Typo.overline" Class="px-4 mt-3 mb-1" Color="Color.Secondary">Raporty</MudText>
+                        <MudNavLink Href="/reports" Icon="@Icons.Material.Filled.Assessment">
+                            Raporty
+                        </MudNavLink>
+                    }
+
+                    @if (IsInRole(context, "EquipmentWorker", "EquipmentManager", "Administrator"))
+                    {
+                        <MudNavLink Href="/notifications" Icon="@Icons.Material.Filled.Notifications">
+                            Powiadomienia
+                        </MudNavLink>
+                    }
+
+                    @if (IsInRole(context, "Administrator"))
+                    {
+                        <MudText Typo="Typo.overline" Class="px-4 mt-3 mb-1" Color="Color.Secondary">Administracja</MudText>
+                        <MudNavLink Href="/users" Icon="@Icons.Material.Filled.People">
+                            Użytkownicy
+                        </MudNavLink>
+                    }
+                </MudNavMenu>
+            </MudDrawer>
+        </Authorized>
+    </AuthorizeView>
+
+    <MudMainContent Class="pt-16 px-4">
+        @Body
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private bool _drawerOpen = true;
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+
+    private static bool IsInRole(AuthenticationState context, params string[] roles)
+    {
+        var userRole = context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+        return userRole is not null && roles.Contains(userRole);
+    }
+
+    private static string RoleLabel(string? role) => role switch
+    {
+        "Administrator" => "Admin",
+        "EquipmentManager" => "Manager",
+        "EquipmentWorker" => "Technik",
+        "Nurse" => "Pielęgniarka",
+        _ => role ?? ""
+    };
+
+    private async Task Logout()
+    {
+        await AuthService.LogoutAsync();
+        ((TrisecmedAuthStateProvider)AuthStateProvider).NotifyAuthChanged();
+        Nav.NavigateTo("/", forceLoad: true);
+    }
+}

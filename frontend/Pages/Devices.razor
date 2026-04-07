@@ -1,0 +1,186 @@
+@page "/devices"
+@attribute [Authorize]
+@inject ApiClient Api
+@inject AuthService Auth
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject IJSRuntime JS
+
+<PageTitle>Urządzenia — Trisecmed</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-4">Urządzenia</MudText>
+
+<MudPaper Elevation="2" Class="pa-4">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="4">
+            <MudTextField @bind-Value="_search" Label="Szukaj" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Search"
+                          OnKeyDown="@(async (e) => { if (e.Key == "Enter") await LoadData(); })" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect T="string" @bind-Value="_statusFilter" Label="Status" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                <MudSelectItem Value="@("Active")">Aktywne</MudSelectItem>
+                <MudSelectItem Value="@("InRepair")">W naprawie</MudSelectItem>
+                <MudSelectItem Value="@("Archived")">Zarchiwizowane</MudSelectItem>
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="12" md="5" Class="d-flex align-center justify-end gap-2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Search"
+                       OnClick="LoadData">Filtruj</MudButton>
+            @if (CanCreate)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="OpenCreateDialog">Dodaj</MudButton>
+            }
+        </MudItem>
+    </MudGrid>
+
+    <MudTable Items="_devices" Hover="true" Striped="true" Loading="_loading" Class="mt-4" Dense="true">
+        <HeaderContent>
+            <MudTh>Nazwa</MudTh>
+            <MudTh>Nr inwentarzowy</MudTh>
+            <MudTh>Producent / Model</MudTh>
+            <MudTh>Oddział</MudTh>
+            <MudTh>Kategoria</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Nast. przegląd</MudTh>
+            @if (CanCreate)
+            {
+                <MudTh Style="width:120px">Akcje</MudTh>
+            }
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.Name</MudTd>
+            <MudTd><code>@context.InventoryNumber</code></MudTd>
+            <MudTd>@context.Manufacturer @context.Model</MudTd>
+            <MudTd>@context.DepartmentName</MudTd>
+            <MudTd>@context.CategoryName</MudTd>
+            <MudTd><MudChip T="string" Size="Size.Small" Color="StatusColor(context.Status)">@StatusLabel(context.Status)</MudChip></MudTd>
+            <MudTd>@(context.NextInspectionDate ?? "—")</MudTd>
+            @if (CanCreate)
+            {
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Title="Edytuj"
+                                   OnClick="() => OpenEditDialog(context)" />
+                    @if (CanDelete)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" Title="Archiwizuj"
+                                       OnClick="() => DeleteDevice(context)" />
+                    }
+                </MudTd>
+            }
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Color="Color.Secondary">Brak urządzeń</MudText>
+        </NoRecordsContent>
+    </MudTable>
+
+    <div class="d-flex justify-center mt-4">
+        <MudPagination Count="_totalPages" Selected="_page" SelectedChanged="OnPageChanged" />
+    </div>
+</MudPaper>
+
+@code {
+    private List<DeviceDto> _devices = [];
+    private string? _search, _statusFilter, _role;
+    private int _page = 1, _totalPages;
+    private bool _loading;
+
+    private bool CanCreate => _role is "EquipmentWorker" or "EquipmentManager";
+    private bool CanDelete => _role is "EquipmentManager";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _role = await Auth.GetUserRoleAsync();
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        try
+        {
+            var result = await Api.GetDevicesAsync(_page, 25, _search, _statusFilter);
+            _devices = result.Items;
+            _totalPages = Math.Max(1, result.TotalPages);
+        }
+        catch (Exception ex) { Snackbar.Add($"Błąd: {ex.Message}", Severity.Error); }
+        _loading = false;
+    }
+
+    private async Task OnPageChanged(int page) { _page = page; await LoadData(); }
+
+    private async Task OpenCreateDialog()
+    {
+        var parameters = new DialogParameters<DeviceDialog>
+        {
+            { x => x.Model, new DeviceFormModel() },
+            { x => x.IsEdit, false }
+        };
+        var dialog = await DialogService.ShowAsync<DeviceDialog>("Nowe urządzenie", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Snackbar.Add("Urządzenie dodane", Severity.Success);
+            await LoadData();
+        }
+    }
+
+    private async Task OpenEditDialog(DeviceDto device)
+    {
+        var model = new DeviceFormModel
+        {
+            Name = device.Name,
+            InventoryNumber = device.InventoryNumber,
+            SerialNumber = device.SerialNumber,
+            Manufacturer = device.Manufacturer,
+            Model = device.Model,
+            CategoryId = device.CategoryId,
+            DepartmentId = device.DepartmentId,
+            PurchaseDate = device.PurchaseDate != null ? DateTime.Parse(device.PurchaseDate) : null,
+            PurchasePrice = device.PurchasePrice,
+            WarrantyExpires = device.WarrantyExpires != null ? DateTime.Parse(device.WarrantyExpires) : null,
+            NextInspectionDate = device.NextInspectionDate != null ? DateTime.Parse(device.NextInspectionDate) : null,
+            Notes = device.Notes,
+        };
+        var parameters = new DialogParameters<DeviceDialog>
+        {
+            { x => x.Model, model },
+            { x => x.IsEdit, true },
+            { x => x.DeviceId, device.Id }
+        };
+        var dialog = await DialogService.ShowAsync<DeviceDialog>("Edytuj urządzenie", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Snackbar.Add("Urządzenie zaktualizowane", Severity.Success);
+            await LoadData();
+        }
+    }
+
+    private async Task DeleteDevice(DeviceDto device)
+    {
+        var confirm = await JS.InvokeAsync<bool>("confirm", $"Czy na pewno archiwizować \"{device.Name}\"?");
+        if (confirm)
+        {
+            var res = await Api.DeleteDeviceAsync(device.Id);
+            if (res.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Urządzenie zarchiwizowane", Severity.Success);
+                await LoadData();
+            }
+            else
+                Snackbar.Add("Błąd archiwizacji", Severity.Error);
+        }
+    }
+
+    private static Color StatusColor(string status) => status switch
+    {
+        "Active" => Color.Success, "InRepair" => Color.Warning, "Archived" => Color.Default, "Disposed" => Color.Error, _ => Color.Default,
+    };
+
+    private static string StatusLabel(string status) => status switch
+    {
+        "Active" => "Aktywne", "InRepair" => "W naprawie", "Archived" => "Zarchiwizowane", "Disposed" => "Wycofane", _ => status,
+    };
+}

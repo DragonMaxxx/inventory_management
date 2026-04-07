@@ -7,8 +7,10 @@ using Trisecmed.Domain.Interfaces;
 using Trisecmed.Infrastructure.Auth;
 using Trisecmed.Infrastructure.Data;
 using Trisecmed.Application.Equipment.Commands;
+using Trisecmed.Application.Reports;
 using Trisecmed.Infrastructure.Email;
 using Trisecmed.Infrastructure.Jobs;
+using Trisecmed.Infrastructure.Reports;
 using Trisecmed.Infrastructure.Repositories;
 using Trisecmed.Infrastructure.Services;
 
@@ -40,6 +42,9 @@ public static class DependencyInjection
 
         // Services
         services.AddScoped<IExcelReader, ClosedXmlExcelReader>();
+
+        // Reports
+        services.AddScoped<IReportService, ReportService>();
 
         // Email & Notifications
         services.AddScoped<IEmailService, SmtpEmailService>();

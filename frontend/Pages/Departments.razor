@@ -1,0 +1,95 @@
+@page "/departments"
+@attribute [Authorize]
+@inject ApiClient Api
+@inject AuthService Auth
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject IJSRuntime JS
+
+<PageTitle>Oddziały — Trisecmed</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-4">Oddziały</MudText>
+
+<MudPaper Elevation="2" Class="pa-4">
+    @if (CanEdit)
+    {
+        <div class="d-flex justify-end mb-4">
+            <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.Add" OnClick="OpenCreate">Dodaj</MudButton>
+        </div>
+    }
+
+    <MudTable Items="_items" Hover="true" Striped="true" Loading="_loading" Dense="true">
+        <HeaderContent>
+            <MudTh>Nazwa</MudTh>
+            <MudTh>Kod</MudTh>
+            @if (CanEdit)
+            {
+                <MudTh Style="width:120px">Akcje</MudTh>
+            }
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.Name</MudTd>
+            <MudTd><code>@(context.Code ?? "—")</code></MudTd>
+            @if (CanEdit)
+            {
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="() => OpenEdit(context)" />
+                    @if (CanDelete)
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="() => Delete(context)" />
+                    }
+                </MudTd>
+            }
+        </RowTemplate>
+    </MudTable>
+</MudPaper>
+
+@code {
+    private List<DepartmentDto> _items = [];
+    private bool _loading = true;
+    private string? _role;
+
+    private bool CanEdit => _role is "EquipmentManager" or "Administrator";
+    private bool CanDelete => _role is "Administrator";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _role = await Auth.GetUserRoleAsync();
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        _loading = true;
+        _items = await Api.GetDepartmentsAsync();
+        _loading = false;
+    }
+
+    private async Task OpenCreate()
+    {
+        var parameters = new DialogParameters<DepartmentDialog> { { x => x.Model, new DepartmentFormModel() }, { x => x.IsEdit, false } };
+        var dialog = await DialogService.ShowAsync<DepartmentDialog>("Nowy oddział", parameters, new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is { Canceled: false }) { Snackbar.Add("Oddział dodany", Severity.Success); await LoadData(); }
+    }
+
+    private async Task OpenEdit(DepartmentDto item)
+    {
+        var model = new DepartmentFormModel { Name = item.Name, Code = item.Code };
+        var parameters = new DialogParameters<DepartmentDialog> { { x => x.Model, model }, { x => x.IsEdit, true }, { x => x.ItemId, item.Id } };
+        var dialog = await DialogService.ShowAsync<DepartmentDialog>("Edytuj oddział", parameters, new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is { Canceled: false }) { Snackbar.Add("Oddział zaktualizowany", Severity.Success); await LoadData(); }
+    }
+
+    private async Task Delete(DepartmentDto item)
+    {
+        var confirm = await JS.InvokeAsync<bool>("confirm", $"Czy na pewno usunąć \"{item.Name}\"?");
+        if (confirm)
+        {
+            var res = await Api.DeleteDepartmentAsync(item.Id);
+            if (res.IsSuccessStatusCode) { Snackbar.Add("Usunięto", Severity.Success); await LoadData(); }
+            else Snackbar.Add("Błąd usuwania", Severity.Error);
+        }
+    }
+}

@@ -1,0 +1,61 @@
+@inject ApiClient Api
+
+<MudDialog>
+    <TitleContent>Zgłoś awarię</TitleContent>
+    <DialogContent>
+        <MudForm @ref="_form">
+            <MudSelect T="Guid?" @bind-Value="Model.DeviceId" Label="Urządzenie" Required="true" RequiredError="Wymagane">
+                @foreach (var d in _devices)
+                {
+                    <MudSelectItem T="Guid?" Value="d.Id">@d.Name (@d.InventoryNumber)</MudSelectItem>
+                }
+            </MudSelect>
+            <MudSelect T="string" @bind-Value="Model.Priority" Label="Priorytet" Required="true">
+                <MudSelectItem Value="@("Critical")">Krytyczny</MudSelectItem>
+                <MudSelectItem Value="@("High")">Wysoki</MudSelectItem>
+                <MudSelectItem Value="@("Medium")">Średni</MudSelectItem>
+                <MudSelectItem Value="@("Low")">Niski</MudSelectItem>
+            </MudSelect>
+            <MudTextField @bind-Value="Model.Description" Label="Opis awarii" Required="true" RequiredError="Wymagane" Lines="4" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Anuluj</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit">Zgłoś</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public FailureFormModel Model { get; set; } = new();
+
+    private MudForm _form = null!;
+    private List<DeviceDto> _devices = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var result = await Api.GetDevicesAsync(1, 200);
+        _devices = result.Items;
+    }
+
+    private async Task Submit()
+    {
+        await _form.ValidateAsync();
+        if (!_form.IsValid) return;
+
+        var payload = new
+        {
+            deviceId = Model.DeviceId,
+            description = Model.Description,
+            priority = Model.Priority
+        };
+
+        var res = await Api.CreateFailureAsync(payload);
+        if (res.IsSuccessStatusCode)
+            MudDialog.Close(DialogResult.Ok(true));
+        else
+            MudDialog.Close(DialogResult.Cancel());
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

@@ -1,0 +1,152 @@
+@page "/devices/{DeviceId:guid}"
+@attribute [Authorize]
+@inject ApiClient Api
+@inject AuthService Auth
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject NavigationManager Nav
+
+<PageTitle>Urządzenie — Trisecmed</PageTitle>
+
+@if (_device is null)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else
+{
+    <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack" OnClick="@(() => Nav.NavigateTo("/devices"))" Class="mb-2">Powrót</MudButton>
+
+    <MudText Typo="Typo.h5" Class="mb-4">@_device.Name</MudText>
+
+    <MudGrid>
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="2" Class="pa-4">
+                <MudText Typo="Typo.h6" Class="mb-3">Dane urządzenia</MudText>
+                <MudSimpleTable Dense="true" Hover="true">
+                    <tbody>
+                        <tr><td><strong>Nr inwentarzowy</strong></td><td><code>@_device.InventoryNumber</code></td></tr>
+                        <tr><td><strong>Nr seryjny</strong></td><td>@(_device.SerialNumber ?? "—")</td></tr>
+                        <tr><td><strong>Producent</strong></td><td>@_device.Manufacturer</td></tr>
+                        <tr><td><strong>Model</strong></td><td>@_device.Model</td></tr>
+                        <tr><td><strong>Kategoria</strong></td><td>@_device.CategoryName</td></tr>
+                        <tr><td><strong>Oddział</strong></td><td>@_device.DepartmentName</td></tr>
+                        <tr><td><strong>Status</strong></td><td><MudChip T="string" Size="Size.Small" Color="StatusColor(_device.Status)">@_device.Status</MudChip></td></tr>
+                        <tr><td><strong>Data zakupu</strong></td><td>@(_device.PurchaseDate ?? "—")</td></tr>
+                        <tr><td><strong>Cena zakupu</strong></td><td>@(_device.PurchasePrice?.ToString("N2 zł") ?? "—")</td></tr>
+                        <tr><td><strong>Gwarancja do</strong></td><td>@(_device.WarrantyExpires ?? "—")</td></tr>
+                        <tr><td><strong>Następny przegląd</strong></td><td>@(_device.NextInspectionDate ?? "—")</td></tr>
+                        <tr><td><strong>Notatki</strong></td><td>@(_device.Notes ?? "—")</td></tr>
+                    </tbody>
+                </MudSimpleTable>
+
+                @if (_role is "EquipmentManager")
+                {
+                    <MudText Typo="Typo.subtitle2" Class="mt-4 mb-2">Zmień status</MudText>
+                    <div class="d-flex gap-2">
+                        <MudSelect T="string" @bind-Value="_newStatus" Label="Nowy status" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:200px">
+                            <MudSelectItem Value="@("Active")">Aktywne</MudSelectItem>
+                            <MudSelectItem Value="@("InRepair")">W naprawie</MudSelectItem>
+                            <MudSelectItem Value="@("Disposed")">Wycofane</MudSelectItem>
+                        </MudSelect>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ChangeStatus" Disabled="string.IsNullOrEmpty(_newStatus)">Zmień</MudButton>
+                    </div>
+                }
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="2" Class="pa-4">
+                <div class="d-flex justify-space-between align-center mb-3">
+                    <MudText Typo="Typo.h6">Przeglądy</MudText>
+                    @if (_role is "EquipmentWorker" or "EquipmentManager")
+                    {
+                        <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Small" StartIcon="@Icons.Material.Filled.Add" OnClick="OpenAddInspection">Dodaj</MudButton>
+                    }
+                </div>
+
+                @if (_inspections.Count == 0)
+                {
+                    <MudText Color="Color.Secondary">Brak przeglądów</MudText>
+                }
+                else
+                {
+                    <MudSimpleTable Dense="true" Hover="true">
+                        <thead>
+                            <tr><th>Data</th><th>Wykonał</th><th>Wynik</th><th>Nast. przegląd</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var i in _inspections)
+                            {
+                                <tr>
+                                    <td>@i.InspectionDate</td>
+                                    <td>@(i.PerformedBy ?? "—")</td>
+                                    <td>@(i.Result ?? "—")</td>
+                                    <td>@(i.NextInspectionDate ?? "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    [Parameter] public Guid DeviceId { get; set; }
+
+    private DeviceDto? _device;
+    private List<InspectionDto> _inspections = [];
+    private string? _role, _newStatus;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _role = await Auth.GetUserRoleAsync();
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            _device = await Api.GetDeviceAsync(DeviceId);
+            if (_role is "EquipmentWorker" or "EquipmentManager")
+                _inspections = await Api.GetDeviceInspectionsAsync(DeviceId);
+        }
+        catch (Exception ex) { Snackbar.Add($"Błąd: {ex.Message}", Severity.Error); }
+    }
+
+    private async Task ChangeStatus()
+    {
+        if (string.IsNullOrEmpty(_newStatus)) return;
+        var res = await Api.ChangeDeviceStatusAsync(DeviceId, new { status = _newStatus });
+        if (res.IsSuccessStatusCode)
+        {
+            Snackbar.Add("Status zmieniony", Severity.Success);
+            _newStatus = null;
+            await LoadData();
+        }
+        else Snackbar.Add("Błąd zmiany statusu", Severity.Error);
+    }
+
+    private async Task OpenAddInspection()
+    {
+        var parameters = new DialogParameters<InspectionDialog>
+        {
+            { x => x.DeviceId, DeviceId },
+            { x => x.Model, new InspectionFormModel() }
+        };
+        var dialog = await DialogService.ShowAsync<InspectionDialog>("Nowy przegląd", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Snackbar.Add("Przegląd dodany", Severity.Success);
+            await LoadData();
+        }
+    }
+
+    private static Color StatusColor(string s) => s switch
+    {
+        "Active" => Color.Success, "InRepair" => Color.Warning, "Archived" => Color.Default, "Disposed" => Color.Error, _ => Color.Default,
+    };
+}

@@ -24,10 +24,13 @@ docker compose up --build -d
 3. **[Zarządzanie użytkownikami](03-zarzadzanie-uzytkownikami.md)** — tworzenie kont, lista użytkowników, kontrola ról
 4. **[Import z Excela](04-import-excel.md)** — import urządzeń z pliku .xlsx, duplikaty, błędy
 5. **[Macierz uprawnień RBAC](05-rbac-macierz-uprawnien.md)** — systematyczny test uprawnień dla każdej roli
+6. **[Awarie](06-awarie.md)** — zgłoszenie, zmiana statusu, przypisanie serwisanta, zamknięcie, historia
+7. **[Raporty](07-raporty.md)** — raporty PDF/XLSX (aparatura, awarie, przeglądy), eksport RODO
+8. **[Słowniki](08-slowniki.md)** — kategorie, oddziały, serwisanci — CRUD + RBAC
 
 ## Kolejność
 
-Scenariusze najlepiej przechodzić w kolejności 1 → 2 → 3 → 4 → 5, bo niektóre (np. 2) tworzą dane potrzebne w późniejszych testach. Scenariusz 5 (RBAC) można robić niezależnie od reszty.
+Scenariusze najlepiej przechodzić w kolejności 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8, bo niektóre tworzą dane potrzebne w późniejszych testach. Scenariusze 5 i 8 (RBAC) można robić niezależnie od reszty.
 
 ## Stałe ID do testów
 

@@ -1,0 +1,135 @@
+@page "/reports"
+@attribute [Authorize(Roles = "EquipmentWorker,EquipmentManager")]
+@inject ApiClient Api
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<PageTitle>Raporty — Trisecmed</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-4">Raporty</MudText>
+
+<MudGrid>
+    <MudItem xs="12" md="4">
+        <MudPaper Elevation="2" Class="pa-4">
+            <MudText Typo="Typo.h6" Class="mb-3">Raport urządzeń</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">Zestawienie urządzeń z filtrami po oddziale, kategorii i statusie.</MudText>
+            <MudSelect T="string" @bind-Value="_eqFormat" Label="Format" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3">
+                <MudSelectItem Value="@("pdf")">PDF</MudSelectItem>
+                <MudSelectItem Value="@("xlsx")">Excel</MudSelectItem>
+            </MudSelect>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Download"
+                       OnClick="DownloadEquipment" Disabled="_eqLoading" FullWidth="true">
+                @if (_eqLoading) { <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" /> }
+                Pobierz
+            </MudButton>
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="4">
+        <MudPaper Elevation="2" Class="pa-4">
+            <MudText Typo="Typo.h6" Class="mb-3">Raport awarii</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">Zestawienie awarii z kosztami napraw i filtrowaniem po datach.</MudText>
+            <MudDatePicker @bind-Date="_failFrom" Label="Od" DateFormat="yyyy-MM-dd" Margin="Margin.Dense" Class="mb-2" />
+            <MudDatePicker @bind-Date="_failTo" Label="Do" DateFormat="yyyy-MM-dd" Margin="Margin.Dense" Class="mb-2" />
+            <MudSelect T="string" @bind-Value="_failFormat" Label="Format" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3">
+                <MudSelectItem Value="@("pdf")">PDF</MudSelectItem>
+                <MudSelectItem Value="@("xlsx")">Excel</MudSelectItem>
+            </MudSelect>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Download"
+                       OnClick="DownloadFailures" Disabled="_failLoading" FullWidth="true">
+                @if (_failLoading) { <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" /> }
+                Pobierz
+            </MudButton>
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="4">
+        <MudPaper Elevation="2" Class="pa-4">
+            <MudText Typo="Typo.h6" Class="mb-3">Raport przeglądów</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">Zestawienie przeglądów technicznych z filtrowaniem po datach.</MudText>
+            <MudDatePicker @bind-Date="_inspFrom" Label="Od" DateFormat="yyyy-MM-dd" Margin="Margin.Dense" Class="mb-2" />
+            <MudDatePicker @bind-Date="_inspTo" Label="Do" DateFormat="yyyy-MM-dd" Margin="Margin.Dense" Class="mb-2" />
+            <MudSelect T="string" @bind-Value="_inspFormat" Label="Format" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3">
+                <MudSelectItem Value="@("pdf")">PDF</MudSelectItem>
+                <MudSelectItem Value="@("xlsx")">Excel</MudSelectItem>
+            </MudSelect>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Download"
+                       OnClick="DownloadInspections" Disabled="_inspLoading" FullWidth="true">
+                @if (_inspLoading) { <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" /> }
+                Pobierz
+            </MudButton>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private string _eqFormat = "pdf", _failFormat = "pdf", _inspFormat = "pdf";
+    private DateTime? _failFrom, _failTo, _inspFrom, _inspTo;
+    private bool _eqLoading, _failLoading, _inspLoading;
+
+    private async Task DownloadEquipment()
+    {
+        _eqLoading = true;
+        try
+        {
+            var data = await Api.DownloadReportAsync("equipment", new { format = _eqFormat });
+            var ext = _eqFormat == "pdf" ? "pdf" : "xlsx";
+            var mime = _eqFormat == "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            await SaveFile(data, $"raport_urzadzen.{ext}", mime);
+        }
+        catch (Exception ex) { Snackbar.Add($"Błąd: {ex.Message}", Severity.Error); }
+        _eqLoading = false;
+    }
+
+    private async Task DownloadFailures()
+    {
+        _failLoading = true;
+        try
+        {
+            var request = new
+            {
+                format = _failFormat,
+                from = _failFrom?.ToString("yyyy-MM-dd"),
+                to = _failTo?.ToString("yyyy-MM-dd")
+            };
+            var data = await Api.DownloadReportAsync("failures", request);
+            var ext = _failFormat == "pdf" ? "pdf" : "xlsx";
+            var mime = _failFormat == "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            await SaveFile(data, $"raport_awarii.{ext}", mime);
+        }
+        catch (Exception ex) { Snackbar.Add($"Błąd: {ex.Message}", Severity.Error); }
+        _failLoading = false;
+    }
+
+    private async Task DownloadInspections()
+    {
+        _inspLoading = true;
+        try
+        {
+            var request = new
+            {
+                format = _inspFormat,
+                from = _inspFrom?.ToString("yyyy-MM-dd"),
+                to = _inspTo?.ToString("yyyy-MM-dd")
+            };
+            var data = await Api.DownloadReportAsync("inspections", request);
+            var ext = _inspFormat == "pdf" ? "pdf" : "xlsx";
+            var mime = _inspFormat == "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            await SaveFile(data, $"raport_przegladow.{ext}", mime);
+        }
+        catch (Exception ex) { Snackbar.Add($"Błąd: {ex.Message}", Severity.Error); }
+        _inspLoading = false;
+    }
+
+    private async Task SaveFile(byte[] data, string fileName, string mimeType)
+    {
+        var base64 = Convert.ToBase64String(data);
+        await JS.InvokeVoidAsync("eval", $@"
+            var a = document.createElement('a');
+            a.href = 'data:{mimeType};base64,{base64}';
+            a.download = '{fileName}';
+            a.click();
+        ");
+        Snackbar.Add("Raport pobrany", Severity.Success);
+    }
+}
